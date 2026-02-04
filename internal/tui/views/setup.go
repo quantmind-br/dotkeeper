@@ -30,14 +30,15 @@ type SetupCompleteMsg struct {
 
 // SetupModel represents the setup wizard
 type SetupModel struct {
-	step         SetupStep
-	config       *config.Config
-	input        textinput.Model
-	addedFiles   []string
-	addedFolders []string
-	width        int
-	height       int
-	err          error
+	step          SetupStep
+	config        *config.Config
+	input         textinput.Model
+	addedFiles    []string
+	addedFolders  []string
+	width         int
+	height        int
+	err           error
+	validationErr string
 }
 
 // NewSetup creates a new setup wizard model
@@ -120,26 +121,36 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 	case StepAddFiles:
 		value := strings.TrimSpace(m.input.Value())
 		if value == "" {
-			// Empty input means move to next step
+			m.validationErr = ""
 			m.step = StepAddFolders
 			m.resetInput()
 			m.input.Focus()
 		} else {
-			// Add file to list
-			m.addedFiles = append(m.addedFiles, value)
-			m.input.SetValue("")
+			expandedPath, err := ValidateFilePath(expandHome(value))
+			if err != nil {
+				m.validationErr = err.Error()
+			} else {
+				m.validationErr = ""
+				m.addedFiles = append(m.addedFiles, expandedPath)
+				m.input.SetValue("")
+			}
 		}
 
 	case StepAddFolders:
 		value := strings.TrimSpace(m.input.Value())
 		if value == "" {
-			// Empty input means move to next step
+			m.validationErr = ""
 			m.step = StepConfirm
 			m.resetInput()
 		} else {
-			// Add folder to list
-			m.addedFolders = append(m.addedFolders, value)
-			m.input.SetValue("")
+			expandedPath, err := ValidateFolderPath(expandHome(value))
+			if err != nil {
+				m.validationErr = err.Error()
+			} else {
+				m.validationErr = ""
+				m.addedFolders = append(m.addedFolders, expandedPath)
+				m.input.SetValue("")
+			}
 		}
 
 	case StepConfirm:
@@ -204,6 +215,11 @@ func (m SetupModel) View() string {
 		s.WriteString("Enter file paths to backup (one per line).\n")
 		s.WriteString("Press Enter with empty input to continue.\n\n")
 
+		if m.validationErr != "" {
+			errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
+			s.WriteString(errorStyle.Render("✗ "+m.validationErr) + "\n\n")
+		}
+
 		if len(m.addedFiles) > 0 {
 			s.WriteString(highlightStyle.Render("Added files:") + "\n")
 			for _, f := range m.addedFiles {
@@ -219,6 +235,11 @@ func (m SetupModel) View() string {
 		s.WriteString(titleStyle.Render("Step 4: Add Folders") + "\n\n")
 		s.WriteString("Enter folder paths to backup (one per line).\n")
 		s.WriteString("Press Enter with empty input to continue.\n\n")
+
+		if m.validationErr != "" {
+			errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
+			s.WriteString(errorStyle.Render("✗ "+m.validationErr) + "\n\n")
+		}
 
 		if len(m.addedFolders) > 0 {
 			s.WriteString(highlightStyle.Render("Added folders:") + "\n")
