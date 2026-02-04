@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const maxSymlinkDepth = 20
@@ -27,9 +28,14 @@ func CollectFiles(paths []string) ([]FileInfo, error) {
 	visited := make(map[string]bool)
 
 	for _, path := range paths {
-		if err := collectPath(path, &files, visited, 0); err != nil {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			continue
+		}
+		expanded := expandHome(trimmed)
+		if err := collectPath(expanded, &files, visited, 0); err != nil {
 			// Log error but continue with other paths
-			log.Printf("Warning: skipping %s: %v", path, err)
+			log.Printf("Warning: skipping %s: %v", expanded, err)
 		}
 	}
 
@@ -137,4 +143,17 @@ func countSymlinkDepth(path string) int {
 	}
 
 	return depth
+}
+
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~/") || path == "~" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			if path == "~" {
+				return home
+			}
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
 }

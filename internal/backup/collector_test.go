@@ -3,6 +3,7 @@ package backup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -153,6 +154,43 @@ func TestCollectFiles_Directory(t *testing.T) {
 	// Should collect all files in directory
 	if len(files) != 2 {
 		t.Errorf("Expected 2 files, got %d", len(files))
+	}
+}
+
+func TestCollectFiles_ExpandHome(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("failed to get home dir: %v", err)
+	}
+
+	tmpDir, err := os.MkdirTemp(home, "dotkeeper-test-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir in home: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	filePath := filepath.Join(tmpDir, "file.txt")
+	if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	relPath := strings.TrimPrefix(filePath, home+string(filepath.Separator))
+	if relPath == filePath {
+		t.Fatalf("expected file to be under home dir: %s", filePath)
+	}
+
+	pathWithTilde := filepath.Join("~", relPath)
+	files, err := CollectFiles([]string{pathWithTilde})
+	if err != nil {
+		t.Fatalf("CollectFiles failed: %v", err)
+	}
+
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+
+	if files[0].Path != filePath {
+		t.Errorf("expected path %s, got %s", filePath, files[0].Path)
 	}
 }
 
