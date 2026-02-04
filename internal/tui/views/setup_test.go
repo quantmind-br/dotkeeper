@@ -151,8 +151,9 @@ func TestSetupAddFiles(t *testing.T) {
 	if len(model.addedFiles) != 1 {
 		t.Errorf("Expected 1 added file, got %d", len(model.addedFiles))
 	}
-	if model.addedFiles[0] != "~/.bashrc" {
-		t.Errorf("Expected first file to be '~/.bashrc', got %q", model.addedFiles[0])
+	expectedPath := expandHome("~/.bashrc")
+	if model.addedFiles[0] != expectedPath {
+		t.Errorf("Expected first file to be %q, got %q", expectedPath, model.addedFiles[0])
 	}
 	if model.step != StepAddFiles {
 		t.Errorf("Expected to still be at StepAddFiles after adding file, got %d", model.step)
@@ -166,8 +167,9 @@ func TestSetupAddFiles(t *testing.T) {
 	if len(model.addedFiles) != 2 {
 		t.Errorf("Expected 2 added files, got %d", len(model.addedFiles))
 	}
-	if model.addedFiles[1] != "~/.zshrc" {
-		t.Errorf("Expected second file to be '~/.zshrc', got %q", model.addedFiles[1])
+	expectedPath = expandHome("~/.zshrc")
+	if model.addedFiles[1] != expectedPath {
+		t.Errorf("Expected second file to be %q, got %q", expectedPath, model.addedFiles[1])
 	}
 
 	// Press Enter with empty input -> should advance to StepAddFolders
@@ -211,8 +213,9 @@ func TestSetupAddFolders(t *testing.T) {
 	if len(model.addedFolders) != 1 {
 		t.Errorf("Expected 1 added folder, got %d", len(model.addedFolders))
 	}
-	if model.addedFolders[0] != "~/.config" {
-		t.Errorf("Expected first folder to be '~/.config', got %q", model.addedFolders[0])
+	expectedFolderPath := expandHome("~/.config")
+	if model.addedFolders[0] != expectedFolderPath {
+		t.Errorf("Expected first folder to be %q, got %q", expectedFolderPath, model.addedFolders[0])
 	}
 	if model.step != StepAddFolders {
 		t.Errorf("Expected to still be at StepAddFolders after adding folder, got %d", model.step)
@@ -323,11 +326,13 @@ func TestSetupComplete(t *testing.T) {
 	if savedCfg.GitRemote != "https://github.com/user/dotfiles.git" {
 		t.Errorf("Expected saved GitRemote to be set, got %q", savedCfg.GitRemote)
 	}
-	if len(savedCfg.Files) != 1 || savedCfg.Files[0] != "~/.bashrc" {
-		t.Errorf("Expected saved Files to contain '~/.bashrc', got %v", savedCfg.Files)
+	expectedFile := expandHome("~/.bashrc")
+	if len(savedCfg.Files) != 1 || savedCfg.Files[0] != expectedFile {
+		t.Errorf("Expected saved Files to contain %q, got %v", expectedFile, savedCfg.Files)
 	}
-	if len(savedCfg.Folders) != 1 || savedCfg.Folders[0] != "~/.config" {
-		t.Errorf("Expected saved Folders to contain '~/.config', got %v", savedCfg.Folders)
+	expectedFolder := expandHome("~/.config")
+	if len(savedCfg.Folders) != 1 || savedCfg.Folders[0] != expectedFolder {
+		t.Errorf("Expected saved Folders to contain %q, got %v", expectedFolder, savedCfg.Folders)
 	}
 }
 
