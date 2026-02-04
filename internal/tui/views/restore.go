@@ -21,7 +21,7 @@ type RestoreModel struct {
 	width            int
 	height           int
 	backupList       list.Model
-	phase            int // 0=backup list, 1=password, 2=file select, 3=restoring, 4=diff preview
+	phase            int // 0=backup list, 1=password, 2=file select, 3=restoring, 4=diff preview, 5=results
 	selectedBackup   string
 	password         string // validated password for restore
 	passwordInput    textinput.Model
@@ -32,7 +32,8 @@ type RestoreModel struct {
 	passwordAttempts int
 	viewport         viewport.Model
 	currentDiff      string
-	diffFile         string // path of file being diffed
+	diffFile         string                 // path of file being diffed
+	restoreResult    *restore.RestoreResult // result of restore operation
 }
 
 type passwordValidMsg struct{}
@@ -51,6 +52,14 @@ type diffLoadedMsg struct {
 }
 
 type diffErrorMsg struct {
+	err error
+}
+
+type restoreCompleteMsg struct {
+	result *restore.RestoreResult
+}
+
+type restoreErrorMsg struct {
 	err error
 }
 
@@ -156,7 +165,6 @@ func (m RestoreModel) loadDiff(filePath string) tea.Cmd {
 	return func() tea.Msg {
 		diff, err := restore.GetFileDiff(m.selectedBackup, m.password, filePath)
 		if err != nil {
-			// Check if file doesn't exist (new file)
 			if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 				return diffLoadedMsg{
 					diff: "[New file - will be created during restore]",
@@ -172,6 +180,20 @@ func (m RestoreModel) loadDiff(filePath string) tea.Cmd {
 			}
 		}
 		return diffLoadedMsg{diff: diff, file: filePath}
+	}
+}
+
+func (m RestoreModel) runRestore() tea.Cmd {
+	return func() tea.Msg {
+		opts := restore.RestoreOptions{
+			SelectedFiles: m.getSelectedFilePaths(),
+		}
+
+		result, err := restore.Restore(m.selectedBackup, m.password, opts)
+		if err != nil {
+			return restoreErrorMsg{err: err}
+		}
+		return restoreCompleteMsg{result: result}
 	}
 }
 
@@ -277,6 +299,20 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreStatus = ""
 		return m, nil
 
+	case restoreCompleteMsg:
+		m.restoreResult = msg.result
+		m.phase = 5
+		m.restoreStatus = ""
+		m.restoreError = ""
+		return m, nil
+
+	case restoreErrorMsg:
+		m.restoreError = fmt.Sprintf("Restore failed: %v", msg.err)
+		m.restoreResult = nil
+		m.phase = 5
+		m.restoreStatus = ""
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.phase == 0 {
 			switch msg.String() {
@@ -351,6 +387,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.phase = 3
 					m.restoreStatus = fmt.Sprintf("Restoring %d files...", selectedCount)
 					m.restoreError = ""
+					return m, m.runRestore()
 				}
 			case "esc":
 				m.phase = 0
@@ -382,11 +419,20 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.restoreStatus = ""
 				m.restoreError = ""
 			default:
-				// Allow other viewport navigation
 				var cmd tea.Cmd
 				m.viewport, cmd = m.viewport.Update(msg)
 				return m, cmd
 			}
+		} else if m.phase == 5 {
+			m.phase = 0
+			m.restoreResult = nil
+			m.selectedFiles = make(map[string]bool)
+			m.password = ""
+			m.restoreError = ""
+			m.restoreStatus = ""
+			m.passwordInput.SetValue("")
+			m.passwordInput.Blur()
+			return m, m.refreshBackups()
 		}
 	}
 
@@ -470,7 +516,6 @@ func (m RestoreModel) View() string {
 		s.WriteString(titleStyle.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
-		// Viewport with diff content
 		viewportStyle := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#666666")).
@@ -487,7 +532,45 @@ func (m RestoreModel) View() string {
 		return s.String()
 	}
 
-	// Placeholder for other phases
+	// Phase 5: Results
+	if m.phase == 5 {
+		s.WriteString(titleStyle.Render("Restore Complete") + "\n\n")
+
+		if m.restoreError != "" {
+			s.WriteString(errorStyle.Render(m.restoreError) + "\n\n")
+		} else if m.restoreResult != nil {
+			s.WriteString(statusStyle.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
+
+			if len(m.restoreResult.BackupFiles) > 0 {
+				s.WriteString(fmt.Sprintf("  %d .bak files created\n", len(m.restoreResult.BackupFiles)))
+			}
+			if m.restoreResult.FilesSkipped > 0 {
+				s.WriteString(fmt.Sprintf("  %d files skipped\n", m.restoreResult.FilesSkipped))
+			}
+
+			s.WriteString("\n")
+
+			if len(m.restoreResult.RestoredFiles) > 0 {
+				s.WriteString("Restored files:\n")
+				for _, f := range m.restoreResult.RestoredFiles {
+					s.WriteString(fmt.Sprintf("  • %s\n", f))
+				}
+				s.WriteString("\n")
+			}
+
+			if len(m.restoreResult.BackupFiles) > 0 {
+				s.WriteString("Backup files created:\n")
+				for _, f := range m.restoreResult.BackupFiles {
+					s.WriteString(fmt.Sprintf("  • %s\n", f))
+				}
+				s.WriteString("\n")
+			}
+		}
+
+		s.WriteString(helpStyle.Render("Press any key to continue"))
+		return s.String()
+	}
+
 	s.WriteString(titleStyle.Render("Restore") + "\n\n")
 	s.WriteString("Phase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)")
 
