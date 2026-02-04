@@ -12,14 +12,14 @@ func TestRestore_View(t *testing.T) {
 	model := NewRestore(cfg)
 	view := model.View()
 
-	expectedTitle := "Restore"
-	expectedContent := "Select a backup to restore (implementation pending)"
+	expectedHelp := "↑/↓: navigate"
 
-	if !strings.Contains(view, expectedTitle) {
-		t.Errorf("Expected view to contain title %q, but got:\n%s", expectedTitle, view)
+	if !strings.Contains(view, expectedHelp) {
+		t.Errorf("Expected view to contain help text %q, but got:\n%s", expectedHelp, view)
 	}
 
-	if !strings.Contains(view, expectedContent) {
-		t.Errorf("Expected view to contain content %q, but got:\n%s", expectedContent, view)
+	// Verify phase 0 is rendered (backup list view)
+	if !strings.Contains(view, "No items") {
+		t.Errorf("Expected view to show empty backup list, but got:\n%s", view)
 	}
 }
