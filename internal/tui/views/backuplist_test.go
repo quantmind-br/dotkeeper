@@ -12,14 +12,12 @@ import (
 )
 
 func TestNewBackupList(t *testing.T) {
-	// Create temporary directory for backups
 	tempDir, err := os.MkdirTemp("", "dotkeeper-backups")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create dummy backup files
 	backups := []string{
 		"backup-20231026-100000.tar.gz.enc",
 		"backup-20231027-110000.tar.gz.enc",
@@ -41,19 +39,23 @@ func TestNewBackupList(t *testing.T) {
 
 	model := NewBackupList(cfg)
 
-	// Send WindowSizeMsg to ensure list is rendered with some size
-	// Note: Update returns a new model, we must capture it!
-	updatedModel, _ := model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	initCmd := model.Init()
+	if initCmd == nil {
+		t.Fatal("Init() should return a command")
+	}
+	msg := initCmd()
+	updatedModel, _ := model.Update(msg)
 	model = updatedModel.(BackupListModel)
 
-	// Get view again after resize
+	updatedModel, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model = updatedModel.(BackupListModel)
+
 	view := model.View()
 
 	if view == "" {
 		t.Error("View returned empty string")
 	}
 
-	// We expect the view to contain the backup names (minus extension)
 	expectedName1 := "backup-20231026-100000"
 	expectedName2 := "backup-20231027-110000"
 
@@ -64,7 +66,6 @@ func TestNewBackupList(t *testing.T) {
 		t.Errorf("View does not contain %s", expectedName2)
 	}
 
-	// check that non-backup file is NOT present
 	if strings.Contains(view, "other-file") {
 		t.Error("View contains non-backup file 'other-file'")
 	}

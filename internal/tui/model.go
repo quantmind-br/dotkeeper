@@ -2,6 +2,8 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
 // ViewState represents the current view
@@ -14,6 +16,7 @@ const (
 	RestoreView
 	SettingsView
 	LogsView
+	SetupView
 )
 
 // Model represents the main TUI model
@@ -24,23 +27,60 @@ type Model struct {
 	quitting bool
 	err      error
 
-	// Sub-models for each view (will be implemented in later tasks)
-	// dashboard    dashboard.Model
-	// fileBrowser  filebrowser.Model
-	// backupList   backuplist.Model
-	// restore      restore.Model
-	// settings     settings.Model
-	// logs         logs.Model
+	// Setup mode
+	setupMode bool
+	setup     views.SetupModel
+	cfg       *config.Config
+
+	// Sub-models for each view
+	dashboard   views.DashboardModel
+	fileBrowser views.FileBrowserModel
+	backupList  views.BackupListModel
+	restore     views.RestoreModel
+	settings    views.SettingsModel
+	logs        views.LogsModel
 }
 
-// NewModel creates a new TUI model
 func NewModel() Model {
+	cfg, err := config.Load()
+	if err != nil {
+		// Config doesn't exist, enter setup mode
+		return Model{
+			state:     SetupView,
+			setupMode: true,
+			setup:     views.NewSetup(),
+			cfg:       nil,
+		}
+	}
+
 	return Model{
-		state: DashboardView,
+		state:       DashboardView,
+		setupMode:   false,
+		cfg:         cfg,
+		dashboard:   views.NewDashboard(cfg),
+		fileBrowser: views.NewFileBrowser(cfg),
+		backupList:  views.NewBackupList(cfg),
+		restore:     views.NewRestore(cfg),
+		settings:    views.NewSettings(cfg),
+		logs:        views.NewLogs(cfg),
 	}
 }
 
-// Init initializes the model
 func (m Model) Init() tea.Cmd {
-	return nil
+	if m.setupMode {
+		return m.setup.Init()
+	}
+
+	return tea.Batch(
+		m.dashboard.Init(),
+		m.fileBrowser.Init(),
+		m.backupList.Init(),
+		m.restore.Init(),
+		m.settings.Init(),
+		m.logs.Init(),
+	)
+}
+
+func (m Model) GetConfig() *config.Config {
+	return m.cfg
 }

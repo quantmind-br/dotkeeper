@@ -78,14 +78,12 @@ type statusMsg struct {
 
 func (m DashboardModel) refreshStatus() tea.Cmd {
 	return func() tea.Msg {
-		// Count tracked files
 		count := len(m.config.Files) + len(m.config.Folders)
 
-		// Check for last backup
 		var lastBackup time.Time
-		backups, _ := filepath.Glob(filepath.Join(m.config.BackupDir, "backup-*.tar.gz.enc"))
+		dir := expandHome(m.config.BackupDir)
+		backups, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 		if len(backups) > 0 {
-			// Get most recent backup
 			info, _ := os.Stat(backups[len(backups)-1])
 			if info != nil {
 				lastBackup = info.ModTime()
