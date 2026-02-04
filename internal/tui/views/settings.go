@@ -218,21 +218,45 @@ func (m *SettingsModel) startEditingField() {
 // saveFieldValue saves the edited field value
 func (m *SettingsModel) saveFieldValue(value string) {
 	if m.editingFiles {
+		// Check if empty
+		if value == "" {
+			return
+		}
+		// Validate file path
+		expandedPath, err := ValidateFilePath(value)
+		if err != nil {
+			m.err = err.Error()
+			return
+		}
+		// Clear error and save expanded path
+		m.err = ""
 		if m.fileCursor < len(m.config.Files) {
-			m.config.Files[m.fileCursor] = value
-		} else if value != "" {
-			m.config.Files = append(m.config.Files, value)
+			m.config.Files[m.fileCursor] = expandedPath
+		} else {
+			m.config.Files = append(m.config.Files, expandedPath)
 		}
 	} else if m.editingFolders {
+		// Check if empty
+		if value == "" {
+			return
+		}
+		// Validate folder path
+		expandedPath, err := ValidateFolderPath(value)
+		if err != nil {
+			m.err = err.Error()
+			return
+		}
+		// Clear error and save expanded path
+		m.err = ""
 		if m.folderCursor < len(m.config.Folders) {
-			m.config.Folders[m.folderCursor] = value
-		} else if value != "" {
-			m.config.Folders = append(m.config.Folders, value)
+			m.config.Folders[m.folderCursor] = expandedPath
+		} else {
+			m.config.Folders = append(m.config.Folders, expandedPath)
 		}
 	} else {
 		switch m.cursor {
 		case 0:
-			m.config.BackupDir = value
+			m.config.BackupDir = expandHome(value)
 		case 1:
 			m.config.GitRemote = value
 		case 4:
@@ -339,7 +363,13 @@ func (m SettingsModel) View() string {
 	}
 
 	if m.err != "" {
-		b.WriteString("\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")).Render(m.err) + "\n")
+		var errStyle lipgloss.Style
+		if strings.Contains(m.err, "success") {
+			errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")) // Green
+		} else {
+			errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")) // Red
+		}
+		b.WriteString("\n" + errStyle.Render(m.err) + "\n")
 	}
 
 	return b.String()
