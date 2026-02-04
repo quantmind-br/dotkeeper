@@ -40,6 +40,33 @@ type passwordInvalidMsg struct {
 	err error
 }
 
+type filesLoadedMsg struct {
+	files []restore.FileEntry
+}
+
+// fileItem represents a file in the restore list with selection state
+type fileItem struct {
+	path     string
+	size     int64
+	selected bool
+}
+
+func (i fileItem) Title() string {
+	checkbox := "[ ]"
+	if i.selected {
+		checkbox = "[x]"
+	}
+	return checkbox + " " + i.path
+}
+
+func (i fileItem) Description() string {
+	return fmt.Sprintf("%d bytes", i.size)
+}
+
+func (i fileItem) FilterValue() string {
+	return i.path
+}
+
 // NewRestore creates a new restore model
 func NewRestore(cfg *config.Config) RestoreModel {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
@@ -105,6 +132,47 @@ func (m RestoreModel) validatePassword(backupPath, password string) tea.Cmd {
 	}
 }
 
+func (m RestoreModel) loadFiles(backupPath, password string) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := restore.ListBackupContents(backupPath, password)
+		if err != nil {
+			return passwordInvalidMsg{err: fmt.Errorf("failed to load files: %w", err)}
+		}
+		return filesLoadedMsg{files: entries}
+	}
+}
+
+func (m *RestoreModel) updateFileListSelection() {
+	items := m.fileList.Items()
+	newItems := make([]list.Item, len(items))
+	for i, item := range items {
+		fi := item.(fileItem)
+		fi.selected = m.selectedFiles[fi.path]
+		newItems[i] = fi
+	}
+	m.fileList.SetItems(newItems)
+}
+
+func (m RestoreModel) countSelectedFiles() int {
+	count := 0
+	for _, selected := range m.selectedFiles {
+		if selected {
+			count++
+		}
+	}
+	return count
+}
+
+func (m RestoreModel) getSelectedFilePaths() []string {
+	var paths []string
+	for path, selected := range m.selectedFiles {
+		if selected {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 // Update handles messages
 func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -125,10 +193,10 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case passwordValidMsg:
 		m.password = m.passwordInput.Value()
 		m.phase = 2
-		m.restoreStatus = ""
+		m.restoreStatus = "Loading files..."
 		m.restoreError = ""
 		m.passwordAttempts = 0
-		return m, nil
+		return m, m.loadFiles(m.selectedBackup, m.password)
 
 	case passwordInvalidMsg:
 		m.passwordAttempts++
@@ -143,6 +211,22 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.passwordInput.SetValue("")
 		}
 		m.restoreStatus = ""
+		return m, nil
+
+	case filesLoadedMsg:
+		items := make([]list.Item, len(msg.files))
+		m.selectedFiles = make(map[string]bool)
+		for i, entry := range msg.files {
+			items[i] = fileItem{
+				path:     entry.Path,
+				size:     int64(len(entry.Content)),
+				selected: false,
+			}
+			m.selectedFiles[entry.Path] = false
+		}
+		m.fileList.SetItems(items)
+		m.restoreStatus = fmt.Sprintf("Loaded %d files", len(msg.files))
+		m.restoreError = ""
 		return m, nil
 
 	case tea.KeyMsg:
@@ -184,6 +268,46 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				var cmd tea.Cmd
 				m.passwordInput, cmd = m.passwordInput.Update(msg)
+				return m, cmd
+			}
+		} else if m.phase == 2 {
+			switch msg.String() {
+			case " ":
+				if item := m.fileList.SelectedItem(); item != nil {
+					fi := item.(fileItem)
+					m.selectedFiles[fi.path] = !m.selectedFiles[fi.path]
+					m.updateFileListSelection()
+				}
+			case "a":
+				for path := range m.selectedFiles {
+					m.selectedFiles[path] = true
+				}
+				m.updateFileListSelection()
+			case "n":
+				for path := range m.selectedFiles {
+					m.selectedFiles[path] = false
+				}
+				m.updateFileListSelection()
+			case "enter":
+				selectedCount := m.countSelectedFiles()
+				if selectedCount == 0 {
+					m.restoreError = "Select at least one file"
+				} else {
+					m.phase = 3
+					m.restoreStatus = fmt.Sprintf("Restoring %d files...", selectedCount)
+					m.restoreError = ""
+				}
+			case "esc":
+				m.phase = 0
+				m.selectedFiles = make(map[string]bool)
+				m.password = ""
+				m.restoreError = ""
+				m.restoreStatus = ""
+				m.passwordInput.SetValue("")
+				m.passwordInput.Blur()
+			default:
+				var cmd tea.Cmd
+				m.fileList, cmd = m.fileList.Update(msg)
 				return m, cmd
 			}
 		}
@@ -236,8 +360,31 @@ func (m RestoreModel) View() string {
 
 	// Phase 2: File selection
 	if m.phase == 2 {
-		s.WriteString(titleStyle.Render("Select Files") + "\n\n")
-		s.WriteString("File selection (implementation pending)")
+		s.WriteString(titleStyle.Render("Select Files to Restore") + "\n\n")
+
+		selectedCount := m.countSelectedFiles()
+		totalCount := len(m.selectedFiles)
+		countStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+		s.WriteString(countStyle.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
+
+		s.WriteString(m.fileList.View())
+		s.WriteString("\n")
+
+		if m.restoreStatus != "" {
+			s.WriteString(statusStyle.Render(m.restoreStatus) + "\n")
+		}
+		if m.restoreError != "" {
+			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+		}
+
+		s.WriteString(helpStyle.Render("Space: toggle | a: select all | n: select none | Enter: restore | Esc: back"))
+		return s.String()
+	}
+
+	// Phase 3: Restoring
+	if m.phase == 3 {
+		s.WriteString(titleStyle.Render("Restoring...") + "\n\n")
+		s.WriteString(m.restoreStatus)
 		return s.String()
 	}
 
