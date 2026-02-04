@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/diogo/dotkeeper/internal/cli"
 	"github.com/diogo/dotkeeper/internal/tui"
 )
 
@@ -36,13 +37,34 @@ func main() {
 		return
 	}
 
-	// Placeholder for CLI commands
-	fmt.Println("dotkeeper - dotfiles backup manager")
-	fmt.Println("Use --help for more information")
+	// Route CLI commands
+	command := flag.Arg(0)
+	args := flag.Args()[1:]
+
+	var exitCode int
+	switch command {
+	case "backup":
+		exitCode = cli.BackupCommand(args)
+	case "restore":
+		exitCode = cli.RestoreCommand(args)
+	case "list":
+		exitCode = cli.ListCommand(args)
+	case "config":
+		exitCode = cli.ConfigCommand(args)
+	case "help":
+		printHelp()
+		exitCode = 0
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
+		fmt.Fprintf(os.Stderr, "Use 'dotkeeper --help' for usage information\n")
+		exitCode = 1
+	}
+
+	os.Exit(exitCode)
 }
 
 func printHelp() {
-	fmt.Println(`dotkeeper - dotfiles backup manager
+	help := `dotkeeper - dotfiles backup manager
 
 Usage:
   dotkeeper [command] [options]
@@ -61,6 +83,6 @@ Options:
 Examples:
   dotkeeper backup
   dotkeeper restore --backup-id <id>
-  dotkeeper list
-`)
+  dotkeeper list`
+	fmt.Println(help)
 }
