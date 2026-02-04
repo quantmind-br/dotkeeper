@@ -1,0 +1,24 @@
+[Unit]
+Description=Dotkeeper automated backup timer
+Documentation=https://github.com/diogo/dotkeeper
+Requires=dotkeeper.service
+
+[Timer]
+# Run daily at 2 AM
+OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
+
+# Run 15 minutes after boot if missed
+OnBootSec=15min
+
+# Run 15 minutes after last activation if system was off
+Persistent=true
+
+# Randomize start time by up to 1 hour to avoid load spikes
+RandomizedDelaySec=1h
+
+# Ensure timer is accurate
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

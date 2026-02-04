@@ -1,0 +1,32 @@
+[Unit]
+Description=Dotkeeper automated backup service
+Documentation=https://github.com/diogo/dotkeeper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=dotkeeper backup --headless
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# Use keyring for password (fail gracefully if not available)
+Environment="DOTKEEPER_USE_KEYRING=true"
+
+# Desktop notification on completion
+ExecStartPost=/usr/bin/notify-send -u normal "Dotkeeper" "Backup completed successfully"
+ExecStopPost=/usr/bin/notify-send -u critical "Dotkeeper" "Backup failed"
+
+# Security hardening
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/dotkeeper %h/.config/dotkeeper
+
+# Resource limits
+CPUQuota=50%
+MemoryMax=512M
+TasksMax=50
+
+[Install]
+WantedBy=default.target
