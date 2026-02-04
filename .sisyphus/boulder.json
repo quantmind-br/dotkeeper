@@ -1,8 +1,6 @@
 {
-  "active_plan": "/home/diogo/dev/backup-dotfiles/.sisyphus/plans/interactive-config-tui.md",
-  "started_at": "2026-02-04T20:59:48.938Z",
-  "session_ids": [
-    "ses_3d632e8edffejC5JnNZe1X87Qp"
-  ],
-  "plan_name": "interactive-config-tui"
+  "active_plan": null,
+  "started_at": null,
+  "session_ids": [],
+  "plan_name": null
 }

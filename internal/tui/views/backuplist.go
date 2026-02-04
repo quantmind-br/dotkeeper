@@ -7,7 +7,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
@@ -23,20 +26,40 @@ func (i backupItem) FilterValue() string { return i.name }
 
 type backupsLoadedMsg []list.Item
 
+type BackupSuccessMsg struct {
+	Result *backup.BackupResult
+}
+
+type BackupErrorMsg struct {
+	Error error
+}
+
 type BackupListModel struct {
-	config *config.Config
-	list   list.Model
-	width  int
-	height int
+	config         *config.Config
+	list           list.Model
+	width          int
+	height         int
+	creatingBackup bool
+	passwordInput  textinput.Model
+	backupStatus   string
+	backupError    string
 }
 
 func NewBackupList(cfg *config.Config) BackupListModel {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Backups"
+	l.SetShowHelp(false)
+
+	ti := textinput.New()
+	ti.Placeholder = "Enter password for encryption"
+	ti.EchoMode = textinput.EchoPassword
+	ti.EchoCharacter = '•'
+	ti.Width = 40
 
 	return BackupListModel{
-		config: cfg,
-		list:   l,
+		config:        cfg,
+		list:          l,
+		passwordInput: ti,
 	}
 }
 
@@ -64,22 +87,116 @@ func (m BackupListModel) Refresh() tea.Cmd {
 	}
 }
 
+func (m BackupListModel) runBackup(password string) tea.Cmd {
+	return func() tea.Msg {
+		cfg := m.config
+		cfg.BackupDir = expandHome(cfg.BackupDir)
+
+		result, err := backup.Backup(cfg, password)
+		if err != nil {
+			return BackupErrorMsg{Error: err}
+		}
+		return BackupSuccessMsg{Result: result}
+	}
+}
+
 func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width, msg.Height-4)
+		m.list.SetSize(msg.Width, msg.Height-6)
+
 	case backupsLoadedMsg:
 		m.list.SetItems([]list.Item(msg))
 		return m, nil
+
+	case BackupSuccessMsg:
+		m.creatingBackup = false
+		m.backupStatus = fmt.Sprintf("✓ Backup created: %s (%d files)", msg.Result.BackupName, msg.Result.FileCount)
+		m.backupError = ""
+		m.passwordInput.SetValue("")
+		return m, m.Refresh()
+
+	case BackupErrorMsg:
+		m.creatingBackup = false
+		m.backupStatus = ""
+		m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Error)
+		m.passwordInput.SetValue("")
+		return m, nil
+
+	case tea.KeyMsg:
+		if m.creatingBackup {
+			switch msg.String() {
+			case "enter":
+				password := m.passwordInput.Value()
+				if password != "" {
+					m.backupStatus = "Creating backup..."
+					m.backupError = ""
+					return m, m.runBackup(password)
+				}
+			case "esc":
+				m.creatingBackup = false
+				m.passwordInput.SetValue("")
+				m.passwordInput.Blur()
+				return m, nil
+			}
+
+			var cmd tea.Cmd
+			m.passwordInput, cmd = m.passwordInput.Update(msg)
+			return m, cmd
+		}
+
+		switch msg.String() {
+		case "n", "c":
+			m.creatingBackup = true
+			m.backupStatus = ""
+			m.backupError = ""
+			m.passwordInput.Focus()
+			return m, textinput.Blink
+		case "r":
+			return m, m.Refresh()
+		}
 	}
 
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	if !m.creatingBackup {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m BackupListModel) View() string {
-	return m.list.View()
+	var s strings.Builder
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+
+	if m.creatingBackup {
+		s.WriteString(titleStyle.Render("Create New Backup") + "\n\n")
+		s.WriteString("Enter encryption password:\n\n")
+		s.WriteString(m.passwordInput.View() + "\n\n")
+		s.WriteString(helpStyle.Render("Press Enter to create backup, Esc to cancel"))
+		return s.String()
+	}
+
+	s.WriteString(m.list.View())
+	s.WriteString("\n")
+
+	if m.backupStatus != "" {
+		s.WriteString(successStyle.Render(m.backupStatus) + "\n")
+	}
+	if m.backupError != "" {
+		s.WriteString(errorStyle.Render(m.backupError) + "\n")
+	}
+
+	s.WriteString(helpStyle.Render("n: new backup | r: refresh | ↑/↓: navigate"))
+
+	return s.String()
 }
