@@ -32,6 +32,7 @@ type RestoreModel struct {
 	passwordAttempts int
 	viewport         viewport.Model
 	currentDiff      string
+	diffFile         string // path of file being diffed
 }
 
 type passwordValidMsg struct{}
@@ -42,6 +43,15 @@ type passwordInvalidMsg struct {
 
 type filesLoadedMsg struct {
 	files []restore.FileEntry
+}
+
+type diffLoadedMsg struct {
+	diff string
+	file string
+}
+
+type diffErrorMsg struct {
+	err error
 }
 
 // fileItem represents a file in the restore list with selection state
@@ -142,6 +152,29 @@ func (m RestoreModel) loadFiles(backupPath, password string) tea.Cmd {
 	}
 }
 
+func (m RestoreModel) loadDiff(filePath string) tea.Cmd {
+	return func() tea.Msg {
+		diff, err := restore.GetFileDiff(m.selectedBackup, m.password, filePath)
+		if err != nil {
+			// Check if file doesn't exist (new file)
+			if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+				return diffLoadedMsg{
+					diff: "[New file - will be created during restore]",
+					file: filePath,
+				}
+			}
+			return diffErrorMsg{err: err}
+		}
+		if diff == "" {
+			return diffLoadedMsg{
+				diff: "[No differences - file is identical]",
+				file: filePath,
+			}
+		}
+		return diffLoadedMsg{diff: diff, file: filePath}
+	}
+}
+
 func (m *RestoreModel) updateFileListSelection() {
 	items := m.fileList.Items()
 	newItems := make([]list.Item, len(items))
@@ -229,6 +262,21 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreError = ""
 		return m, nil
 
+	case diffLoadedMsg:
+		m.currentDiff = msg.diff
+		m.diffFile = msg.file
+		m.viewport.SetContent(msg.diff)
+		m.viewport.GotoTop()
+		m.phase = 4
+		m.restoreStatus = ""
+		m.restoreError = ""
+		return m, nil
+
+	case diffErrorMsg:
+		m.restoreError = fmt.Sprintf("Failed to load diff: %v", msg.err)
+		m.restoreStatus = ""
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.phase == 0 {
 			switch msg.String() {
@@ -288,6 +336,13 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.selectedFiles[path] = false
 				}
 				m.updateFileListSelection()
+			case "d":
+				if item := m.fileList.SelectedItem(); item != nil {
+					fi := item.(fileItem)
+					m.restoreStatus = "Loading diff..."
+					m.restoreError = ""
+					return m, m.loadDiff(fi.path)
+				}
 			case "enter":
 				selectedCount := m.countSelectedFiles()
 				if selectedCount == 0 {
@@ -308,6 +363,28 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				var cmd tea.Cmd
 				m.fileList, cmd = m.fileList.Update(msg)
+				return m, cmd
+			}
+		} else if m.phase == 4 {
+			switch msg.String() {
+			case "j", "down":
+				m.viewport.LineDown(1)
+			case "k", "up":
+				m.viewport.LineUp(1)
+			case "g":
+				m.viewport.GotoTop()
+			case "G":
+				m.viewport.GotoBottom()
+			case "esc":
+				m.phase = 2
+				m.currentDiff = ""
+				m.diffFile = ""
+				m.restoreStatus = ""
+				m.restoreError = ""
+			default:
+				// Allow other viewport navigation
+				var cmd tea.Cmd
+				m.viewport, cmd = m.viewport.Update(msg)
 				return m, cmd
 			}
 		}
@@ -377,7 +454,7 @@ func (m RestoreModel) View() string {
 			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
 		}
 
-		s.WriteString(helpStyle.Render("Space: toggle | a: select all | n: select none | Enter: restore | Esc: back"))
+		s.WriteString(helpStyle.Render("Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
 		return s.String()
 	}
 
@@ -385,6 +462,28 @@ func (m RestoreModel) View() string {
 	if m.phase == 3 {
 		s.WriteString(titleStyle.Render("Restoring...") + "\n\n")
 		s.WriteString(m.restoreStatus)
+		return s.String()
+	}
+
+	// Phase 4: Diff preview
+	if m.phase == 4 {
+		s.WriteString(titleStyle.Render("Diff Preview") + "\n")
+		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
+
+		// Viewport with diff content
+		viewportStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#666666")).
+			Width(m.width - 4).
+			Height(m.height - 10)
+
+		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
+
+		if m.restoreError != "" {
+			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+		}
+
+		s.WriteString(helpStyle.Render("j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
 		return s.String()
 	}
 
