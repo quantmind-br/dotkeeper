@@ -122,6 +122,26 @@ func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	case "enter":
 		if m.editingFiles || m.editingFolders {
 			m.startEditingField()
+		} else if m.cursor == 2 {
+			m.editingFiles = true
+			m.editingFolders = false
+			if len(m.config.Files) > 0 {
+				m.fileCursor = 0
+			} else {
+				m.fileCursor = 0
+				m.startEditingField()
+			}
+		} else if m.cursor == 3 {
+			m.editingFolders = true
+			m.editingFiles = false
+			if len(m.config.Folders) > 0 {
+				m.folderCursor = 0
+			} else {
+				m.folderCursor = 0
+				m.startEditingField()
+			}
+		} else if m.cursor == 5 {
+			m.config.Notifications = !m.config.Notifications
 		} else {
 			m.startEditingField()
 		}
