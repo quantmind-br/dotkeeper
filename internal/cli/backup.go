@@ -15,7 +15,7 @@ import (
 func BackupCommand(args []string) int {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	passwordFile := fs.String("password-file", "", "Path to file containing password")
-	notifyPtr := fs.Bool("notify", true, "Send desktop notifications on completion")
+	notifyPtr := fs.Bool("notify", false, "Send desktop notifications on completion (default: from config)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: dotkeeper backup [--password-file PATH] [--notify]\n\n")
 		fmt.Fprintf(os.Stderr, "Create a backup of dotfiles.\n\n")
@@ -44,7 +44,13 @@ func BackupCommand(args []string) int {
 		return 1
 	}
 
-	notifyFlag := *notifyPtr || cfg.Notifications
+	// Determine notification setting: config is default, flag overrides if explicitly set
+	notifyFlag := cfg.Notifications
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "notify" {
+			notifyFlag = *notifyPtr
+		}
+	})
 
 	// Get password from various sources
 	password, err := getPassword(*passwordFile)
