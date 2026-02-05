@@ -103,10 +103,8 @@ func TestRestoreCommand_Basic(t *testing.T) {
 	os.Stdout = w
 	defer func() { os.Stdout = oldStdout }()
 
-	// Call RestoreCommand (backup name first, then flags)
 	exitCode := RestoreCommand([]string{
 		"--password-file", pwFile,
-		"--force",
 		backupName,
 	})
 
@@ -136,6 +134,14 @@ func TestRestoreCommand_Basic(t *testing.T) {
 		}
 		if string(content) != expectedContent {
 			t.Errorf("File %s: expected content %q, got %q", name, expectedContent, string(content))
+		}
+	}
+
+	for name := range files {
+		testFile := filepath.Join(sourceDir, name)
+		bakFiles, _ := filepath.Glob(testFile + ".bak.*")
+		if len(bakFiles) == 0 {
+			t.Error("Expected .bak file to be created for existing file")
 		}
 	}
 }
@@ -261,6 +267,14 @@ func TestRestoreCommand_Diff(t *testing.T) {
 	if !strings.Contains(output, "@@") {
 		t.Errorf("Expected diff to contain '@@' marker, got: %s", output)
 	}
+
+	restoredContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(restoredContent) != "line1\nline2\nline3\n" {
+		t.Errorf("File was not restored. Got: %s", string(restoredContent))
+	}
 }
 
 func TestRestoreCommand_DryRunDiff(t *testing.T) {
@@ -384,6 +398,11 @@ func TestRestoreCommand_Force(t *testing.T) {
 	if string(content) != "backup content" {
 		t.Errorf("File should be overwritten with backup content. Expected %q, got %q", "backup content", string(content))
 	}
+
+	bakFiles, _ := filepath.Glob(testFile + ".bak.*")
+	if len(bakFiles) > 0 {
+		t.Errorf("Expected no .bak files with --force, but found: %v", bakFiles)
+	}
 }
 
 func TestRestoreCommand_WrongPassword(t *testing.T) {
@@ -425,9 +444,8 @@ func TestRestoreCommand_WrongPassword(t *testing.T) {
 		t.Errorf("Expected exit code 1 for wrong password, got %d", exitCode)
 	}
 
-	// Verify error message
-	if !strings.Contains(output, "Restore failed") {
-		t.Errorf("Expected error message in output, got: %s", output)
+	if !strings.Contains(output, "decrypt") && !strings.Contains(output, "password") {
+		t.Errorf("Expected decrypt/password error message, got: %s", output)
 	}
 }
 
