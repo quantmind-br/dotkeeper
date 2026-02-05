@@ -94,6 +94,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case tea.KeyMsg:
+		if m.showingHelp {
+			m.showingHelp = false
+			return m, nil
+		}
+
+		if key.Matches(msg, keys.Help) {
+			m.showingHelp = !m.showingHelp
+			return m, nil
+		}
+
 		if key.Matches(msg, keys.Quit) {
 			m.quitting = true
 			return m, tea.Quit
@@ -104,6 +114,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = (m.state + 1) % viewCount
 			if m.state == BackupListView && prevState != BackupListView {
 				cmds = append(cmds, m.backupList.Refresh())
+			}
+			if m.state == RestoreView && prevState != RestoreView {
+				cmds = append(cmds, m.restore.Refresh())
 			}
 			return m, tea.Batch(cmds...)
 		}
@@ -116,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			case "r":
 				m.state = RestoreView
-				return m, nil
+				return m, m.restore.Refresh()
 			case "s":
 				m.state = SettingsView
 				return m, nil

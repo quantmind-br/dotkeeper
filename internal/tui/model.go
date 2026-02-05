@@ -21,11 +21,12 @@ const (
 
 // Model represents the main TUI model
 type Model struct {
-	state    ViewState
-	width    int
-	height   int
-	quitting bool
-	err      error
+	state       ViewState
+	width       int
+	height      int
+	quitting    bool
+	err         error
+	showingHelp bool
 
 	// Setup mode
 	setupMode bool

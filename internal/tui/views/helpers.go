@@ -105,4 +105,15 @@ func ValidateFolderPath(path string) (string, error) {
 	return result.ExpandedPath, nil
 }
 
+// HelpEntry represents a single keyboard shortcut entry
+type HelpEntry struct {
+	Key         string
+	Description string
+}
+
+// HelpProvider is implemented by views that expose keyboard shortcuts
+type HelpProvider interface {
+	HelpBindings() []HelpEntry
+}
+
 type RefreshBackupListMsg struct{}

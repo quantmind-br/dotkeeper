@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
 func (m Model) View() string {
@@ -13,6 +14,37 @@ func (m Model) View() string {
 
 	if m.quitting {
 		return "Goodbye!\n"
+	}
+
+	if m.showingHelp {
+		var viewHelp []views.HelpEntry
+		switch m.state {
+		case DashboardView:
+			if hp, ok := interface{}(m.dashboard).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		case FileBrowserView:
+			if hp, ok := interface{}(m.fileBrowser).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		case BackupListView:
+			if hp, ok := interface{}(m.backupList).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		case RestoreView:
+			if hp, ok := interface{}(m.restore).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		case SettingsView:
+			if hp, ok := interface{}(m.settings).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		case LogsView:
+			if hp, ok := interface{}(m.logs).(views.HelpProvider); ok {
+				viewHelp = hp.HelpBindings()
+			}
+		}
+		return renderHelpOverlay(globalHelp(), viewHelp, m.width, m.height)
 	}
 
 	var b strings.Builder
