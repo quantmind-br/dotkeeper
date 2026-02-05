@@ -51,6 +51,8 @@ func main() {
 		exitCode = cli.ListCommand(args)
 	case "config":
 		exitCode = cli.ConfigCommand(args)
+	case "history":
+		exitCode = cli.HistoryCommand(args)
 	case "schedule":
 		exitCode = cli.ScheduleCommand(args)
 	case "help":
@@ -76,6 +78,7 @@ Commands:
   restore     Restore dotfiles from backup
   list        List available backups
   config      Manage configuration
+  history     Show operation history
   schedule    Manage automated backup scheduling
   help        Show this help message
 

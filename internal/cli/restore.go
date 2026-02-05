@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/restore"
 )
 
@@ -84,6 +85,12 @@ func RestoreCommand(args []string) int {
 	result, err := restore.Restore(backupPath, password, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Restore failed: %v\n", err)
+		// Log error to history (best-effort, don't fail if logging fails)
+		if store, err := history.NewStore(); err == nil {
+			store.Append(history.EntryFromRestoreError(err, backupPath))
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+		}
 		return 1
 	}
 
@@ -102,11 +109,23 @@ func RestoreCommand(args []string) int {
 		fmt.Printf("  Files restored: %d\n", result.FilesRestored)
 		fmt.Printf("  Files skipped: %d\n", result.FilesSkipped)
 		fmt.Printf("  Backup files created: %d\n", len(result.BackupFiles))
+		// Log success to history (best-effort, don't fail if logging fails)
+		if store, err := history.NewStore(); err == nil {
+			store.Append(history.EntryFromRestoreResult(result, backupPath))
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+		}
 		return 2 // Partial success
 	}
 
 	fmt.Printf("✓ Restore completed successfully\n")
 	fmt.Printf("  Files restored: %d\n", result.FilesRestored)
 	fmt.Printf("  Backup files created: %d\n", len(result.BackupFiles))
+	// Log success to history (best-effort, don't fail if logging fails)
+	if store, err := history.NewStore(); err == nil {
+		store.Append(history.EntryFromRestoreResult(result, backupPath))
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+	}
 	return 0
 }

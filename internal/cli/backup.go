@@ -7,6 +7,7 @@ import (
 
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/keyring"
 	"github.com/diogo/dotkeeper/internal/notify"
 )
@@ -67,6 +68,12 @@ func BackupCommand(args []string) int {
 		if notifyFlag {
 			notify.SendError(err)
 		}
+		// Log error to history (best-effort, don't fail if logging fails)
+		if store, err := history.NewStore(); err == nil {
+			store.Append(history.EntryFromBackupError(err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+		}
 		return 1
 	}
 
@@ -80,6 +87,13 @@ func BackupCommand(args []string) int {
 
 	if notifyFlag {
 		notify.SendSuccess(result.BackupName, result.Duration)
+	}
+
+	// Log success to history (best-effort, don't fail if logging fails)
+	if store, err := history.NewStore(); err == nil {
+		store.Append(history.EntryFromBackupResult(result))
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
 	}
 
 	return 0
