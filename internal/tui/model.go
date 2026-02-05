@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"fmt"
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -27,6 +31,7 @@ type Model struct {
 	quitting    bool
 	err         error
 	showingHelp bool
+	history     *history.Store
 
 	// Setup mode
 	setupMode bool
@@ -54,16 +59,23 @@ func NewModel() Model {
 		}
 	}
 
+	store, err := history.NewStore()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: history store unavailable: %v\n", err)
+		store = nil
+	}
+
 	return Model{
 		state:       DashboardView,
 		setupMode:   false,
 		cfg:         cfg,
+		history:     store,
 		dashboard:   views.NewDashboard(cfg),
 		fileBrowser: views.NewFileBrowser(cfg),
-		backupList:  views.NewBackupList(cfg),
-		restore:     views.NewRestore(cfg),
+		backupList:  views.NewBackupList(cfg, store),
+		restore:     views.NewRestore(cfg, store),
 		settings:    views.NewSettings(cfg),
-		logs:        views.NewLogs(cfg),
+		logs:        views.NewLogs(cfg, store),
 	}
 }
 

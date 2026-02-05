@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -66,12 +67,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setupMode = false
 			cfg, _ := config.Load()
 			m.cfg = cfg
+			store, _ := history.NewStore()
+			m.history = store
 			m.dashboard = views.NewDashboard(cfg)
 			m.fileBrowser = views.NewFileBrowser(cfg)
-			m.backupList = views.NewBackupList(cfg)
-			m.restore = views.NewRestore(cfg)
+			m.backupList = views.NewBackupList(cfg, store)
+			m.restore = views.NewRestore(cfg, store)
 			m.settings = views.NewSettings(cfg)
-			m.logs = views.NewLogs(cfg)
+			m.logs = views.NewLogs(cfg, store)
 			m.state = DashboardView
 			return m, nil
 		default:
@@ -117,6 +120,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.state == RestoreView && prevState != RestoreView {
 				cmds = append(cmds, m.restore.Refresh())
+			}
+			if m.state == LogsView && prevState != LogsView {
+				cmds = append(cmds, m.logs.LoadHistory())
 			}
 			return m, tea.Batch(cmds...)
 		}

@@ -13,7 +13,7 @@ import (
 
 func TestRestore_View(t *testing.T) {
 	cfg := &config.Config{}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 	view := model.View()
 
 	expectedHelp := "↑/↓: navigate"
@@ -33,7 +33,7 @@ func TestNewRestore(t *testing.T) {
 		BackupDir: "/tmp/test-backups",
 	}
 
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	if model.phase != 0 {
 		t.Errorf("Expected initial phase 0, got %d", model.phase)
@@ -67,7 +67,7 @@ func TestRestoreBackupListLoad(t *testing.T) {
 	}
 
 	cfg := &config.Config{BackupDir: tempDir}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	initCmd := model.Init()
 	if initCmd == nil {
@@ -96,7 +96,7 @@ func TestRestoreBackupListLoad(t *testing.T) {
 
 func TestRestoreModel_Update_WindowSize(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 	updatedModel, _ := model.Update(msg)
@@ -113,7 +113,7 @@ func TestRestoreModel_Update_WindowSize(t *testing.T) {
 
 func TestRestoreModel_Phase0_KeyHandling(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	// Test 'r' key triggers refresh
 	updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
@@ -129,7 +129,7 @@ func TestRestoreModel_Phase0_KeyHandling(t *testing.T) {
 
 func TestRestoreModel_SelectedFilesCount(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	model.selectedFiles = map[string]bool{
 		"/path/file1": true,
@@ -145,7 +145,7 @@ func TestRestoreModel_SelectedFilesCount(t *testing.T) {
 
 func TestRestoreModel_GetSelectedFilePaths(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 
 	model.selectedFiles = map[string]bool{
 		"/path/file1": true,
@@ -175,7 +175,7 @@ func TestRestoreModel_GetSelectedFilePaths(t *testing.T) {
 
 func TestRestoreModel_Phase2_ZeroFilesBlocked(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 	model.phase = 2
 	model.selectedFiles = map[string]bool{
 		"/path/file1": false,
@@ -201,7 +201,7 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
 
 	// Test ESC in phase 1 returns to phase 0
-	model := NewRestore(cfg)
+	model := NewRestore(cfg, nil)
 	model.phase = 1
 	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m := updatedModel.(RestoreModel)
@@ -210,7 +210,7 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	}
 
 	// Test ESC in phase 2 returns to phase 0
-	model = NewRestore(cfg)
+	model = NewRestore(cfg, nil)
 	model.phase = 2
 	model.selectedFiles = make(map[string]bool)
 	updatedModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -220,7 +220,7 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	}
 
 	// Test ESC in phase 4 returns to phase 2
-	model = NewRestore(cfg)
+	model = NewRestore(cfg, nil)
 	model.phase = 4
 	updatedModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = updatedModel.(RestoreModel)

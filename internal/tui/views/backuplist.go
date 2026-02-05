@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 )
 
 type backupItem struct {
@@ -35,6 +36,7 @@ type BackupErrorMsg struct {
 
 type BackupListModel struct {
 	config         *config.Config
+	store          *history.Store
 	list           list.Model
 	width          int
 	height         int
@@ -44,7 +46,7 @@ type BackupListModel struct {
 	backupError    string
 }
 
-func NewBackupList(cfg *config.Config) BackupListModel {
+func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Backups"
 	l.SetShowHelp(false)
@@ -57,6 +59,7 @@ func NewBackupList(cfg *config.Config) BackupListModel {
 
 	return BackupListModel{
 		config:        cfg,
+		store:         store,
 		list:          l,
 		passwordInput: ti,
 	}
@@ -117,6 +120,9 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backupStatus = fmt.Sprintf("✓ Backup created: %s (%d files)", msg.Result.BackupName, msg.Result.FileCount)
 		m.backupError = ""
 		m.passwordInput.SetValue("")
+		if m.store != nil {
+			_ = m.store.Append(history.EntryFromBackupResult(msg.Result))
+		}
 		return m, m.Refresh()
 
 	case BackupErrorMsg:
@@ -124,6 +130,9 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backupStatus = ""
 		m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Error)
 		m.passwordInput.SetValue("")
+		if m.store != nil {
+			_ = m.store.Append(history.EntryFromBackupError(msg.Error))
+		}
 		return m, nil
 
 	case tea.KeyMsg:

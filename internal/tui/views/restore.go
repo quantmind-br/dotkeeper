@@ -12,12 +12,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/restore"
 )
 
 // RestoreModel represents the restore view
 type RestoreModel struct {
 	config           *config.Config
+	store            *history.Store
 	width            int
 	height           int
 	backupList       list.Model
@@ -87,7 +89,7 @@ func (i fileItem) FilterValue() string {
 }
 
 // NewRestore creates a new restore model
-func NewRestore(cfg *config.Config) RestoreModel {
+func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Backups"
 	l.SetShowHelp(false)
@@ -106,6 +108,7 @@ func NewRestore(cfg *config.Config) RestoreModel {
 
 	return RestoreModel{
 		config:        cfg,
+		store:         store,
 		backupList:    l,
 		passwordInput: ti,
 		fileList:      fl,
@@ -309,6 +312,9 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.phase = 5
 		m.restoreStatus = ""
 		m.restoreError = ""
+		if m.store != nil {
+			_ = m.store.Append(history.EntryFromRestoreResult(msg.result, m.selectedBackup))
+		}
 		return m, nil
 
 	case restoreErrorMsg:
@@ -316,6 +322,9 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreResult = nil
 		m.phase = 5
 		m.restoreStatus = ""
+		if m.store != nil {
+			_ = m.store.Append(history.EntryFromRestoreError(msg.err, m.selectedBackup))
+		}
 		return m, nil
 
 	case tea.KeyMsg:

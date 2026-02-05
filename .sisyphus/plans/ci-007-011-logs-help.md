@@ -272,7 +272,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 2. Add CLI `history` Command and Hook CLI Backup/Restore to History
+- [x] 2. Add CLI `history` Command and Hook CLI Backup/Restore to History
 
   **What to do**:
   - Create `internal/cli/history.go`:
@@ -369,7 +369,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 3. Implement LogsView TUI — Replace Skeleton with Full Implementation
+- [x] 3. Implement LogsView TUI — Replace Skeleton with Full Implementation
 
   **What to do**:
   - Rewrite `internal/tui/views/logs.go`:
@@ -462,7 +462,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 4. Wire TUI Backup/Restore to History + LogsView Refresh on Tab
+- [x] 4. Wire TUI Backup/Restore to History + LogsView Refresh on Tab
 
   **What to do**:
   - Update `internal/tui/model.go`:
@@ -650,7 +650,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 6. Add Per-View Help Bindings to All TUI Views
+- [x] 6. Add Per-View Help Bindings to All TUI Views
 
   **What to do**:
   - Implement `HelpProvider` interface on views that have custom keybindings:
@@ -735,7 +735,7 @@ Parallel Speedup: ~40% faster than sequential
 
 ---
 
-- [ ] 7. Final Integration — Build, Full Test Suite, TUI Smoke Test
+- [x] 7. Final Integration — Build, Full Test Suite, TUI Smoke Test
 
   **What to do**:
   - Run `make build` — must succeed with zero warnings

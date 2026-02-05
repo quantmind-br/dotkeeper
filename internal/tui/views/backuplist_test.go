@@ -37,7 +37,7 @@ func TestNewBackupList(t *testing.T) {
 		BackupDir: tempDir,
 	}
 
-	model := NewBackupList(cfg)
+	model := NewBackupList(cfg, nil)
 
 	initCmd := model.Init()
 	if initCmd == nil {
@@ -75,7 +75,7 @@ func TestBackupListModel_Update(t *testing.T) {
 	cfg := &config.Config{
 		BackupDir: ".",
 	}
-	model := NewBackupList(cfg)
+	model := NewBackupList(cfg, nil)
 
 	// Test WindowSizeMsg
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
