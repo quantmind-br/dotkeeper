@@ -1,6 +1,8 @@
 {
-  "active_plan": null,
-  "started_at": null,
-  "session_ids": [],
-  "plan_name": null
+  "active_plan": "/home/diogo/dev/dotkeeper/.sisyphus/plans/ci-007-011-logs-help.md",
+  "started_at": "2026-02-05T21:04:19.489Z",
+  "session_ids": [
+    "ses_3d076ca64ffeZ3ozuS44nZtTl6"
+  ],
+  "plan_name": "ci-007-011-logs-help"
 }

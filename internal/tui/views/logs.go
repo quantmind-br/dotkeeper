@@ -39,3 +39,11 @@ func (m LogsModel) View() string {
 	styles := DefaultStyles()
 	return styles.Title.Render("Logs") + "\n\nOperation history will be displayed here (implementation pending)"
 }
+
+func (m LogsModel) HelpBindings() []HelpEntry {
+	return []HelpEntry{
+		{"f", "Cycle filter"},
+		{"r", "Refresh"},
+		{"↑/↓", "Navigate"},
+	}
+}

@@ -577,3 +577,40 @@ func (m RestoreModel) View() string {
 
 	return s.String()
 }
+
+func (m RestoreModel) HelpBindings() []HelpEntry {
+	switch m.phase {
+	case 0:
+		return []HelpEntry{
+			{"Enter", "Select backup"},
+			{"r", "Refresh"},
+			{"↑/↓", "Navigate"},
+		}
+	case 1:
+		return []HelpEntry{
+			{"Enter", "Submit password"},
+			{"Esc", "Back"},
+		}
+	case 2:
+		return []HelpEntry{
+			{"Space", "Toggle file"},
+			{"a", "Select all"},
+			{"n", "Select none"},
+			{"d", "View diff"},
+			{"Enter", "Restore"},
+			{"Esc", "Back"},
+		}
+	case 4:
+		return []HelpEntry{
+			{"j/k", "Scroll"},
+			{"g/G", "Top/Bottom"},
+			{"Esc", "Back"},
+		}
+	case 5:
+		return []HelpEntry{
+			{"any key", "Continue"},
+		}
+	default:
+		return nil
+	}
+}

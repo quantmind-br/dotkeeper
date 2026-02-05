@@ -392,3 +392,25 @@ func (m SettingsModel) View() string {
 
 	return b.String()
 }
+
+func (m SettingsModel) HelpBindings() []HelpEntry {
+	if m.editingField {
+		return []HelpEntry{
+			{"Enter", "Save field"},
+			{"Esc", "Cancel edit"},
+		}
+	}
+	if m.editMode {
+		return []HelpEntry{
+			{"↑/↓", "Navigate"},
+			{"Enter", "Edit field"},
+			{"a", "Add item"},
+			{"d", "Delete item"},
+			{"s", "Save config"},
+			{"Esc", "Exit edit"},
+		}
+	}
+	return []HelpEntry{
+		{"e", "Edit mode"},
+	}
+}

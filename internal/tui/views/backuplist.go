@@ -196,3 +196,17 @@ func (m BackupListModel) View() string {
 
 	return s.String()
 }
+
+func (m BackupListModel) HelpBindings() []HelpEntry {
+	if m.creatingBackup {
+		return []HelpEntry{
+			{"Enter", "Create backup"},
+			{"Esc", "Cancel"},
+		}
+	}
+	return []HelpEntry{
+		{"n/c", "New backup"},
+		{"r", "Refresh list"},
+		{"↑/↓", "Navigate"},
+	}
+}

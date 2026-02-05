@@ -55,3 +55,10 @@ func (m FileBrowserModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m FileBrowserModel) View() string {
 	return "File Browser\n\n" + m.filepicker.View()
 }
+
+func (m FileBrowserModel) HelpBindings() []HelpEntry {
+	return []HelpEntry{
+		{"Enter", "Select"},
+		{"↑/↓", "Navigate"},
+	}
+}

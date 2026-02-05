@@ -95,3 +95,11 @@ func (m DashboardModel) refreshStatus() tea.Cmd {
 		}
 	}
 }
+
+func (m DashboardModel) HelpBindings() []HelpEntry {
+	return []HelpEntry{
+		{"b", "Go to backups"},
+		{"r", "Go to restore"},
+		{"s", "Go to settings"},
+	}
+}
