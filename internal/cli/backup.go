@@ -15,8 +15,9 @@ import (
 func BackupCommand(args []string) int {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	passwordFile := fs.String("password-file", "", "Path to file containing password")
+	notifyPtr := fs.Bool("notify", true, "Send desktop notifications on completion")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: dotkeeper backup [--password-file PATH]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: dotkeeper backup [--password-file PATH] [--notify]\n\n")
 		fmt.Fprintf(os.Stderr, "Create a backup of dotfiles.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
@@ -43,6 +44,8 @@ func BackupCommand(args []string) int {
 		return 1
 	}
 
+	notifyFlag := *notifyPtr || cfg.Notifications
+
 	// Get password from various sources
 	password, err := getPassword(*passwordFile)
 	if err != nil {
@@ -55,6 +58,9 @@ func BackupCommand(args []string) int {
 	result, err := backup.Backup(cfg, password)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Backup failed: %v\n", err)
+		if notifyFlag {
+			notify.SendError(err)
+		}
 		return 1
 	}
 
@@ -65,6 +71,10 @@ func BackupCommand(args []string) int {
 	fmt.Printf("  Duration: %v\n", result.Duration)
 	fmt.Printf("  Backup file: %s\n", result.BackupPath)
 	fmt.Printf("  Checksum: %s\n", result.Checksum)
+
+	if notifyFlag {
+		notify.SendSuccess(result.BackupName, result.Duration)
+	}
 
 	return 0
 }
