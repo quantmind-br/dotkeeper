@@ -51,6 +51,8 @@ func main() {
 		exitCode = cli.ListCommand(args)
 	case "config":
 		exitCode = cli.ConfigCommand(args)
+	case "schedule":
+		exitCode = cli.ScheduleCommand(args)
 	case "help":
 		printHelp()
 		exitCode = 0
@@ -74,6 +76,7 @@ Commands:
   restore     Restore dotfiles from backup
   list        List available backups
   config      Manage configuration
+  schedule    Manage automated backup scheduling
   help        Show this help message
 
 Options:
@@ -83,6 +86,7 @@ Options:
 Examples:
   dotkeeper backup
   dotkeeper restore --backup-id <id>
-  dotkeeper list`
+  dotkeeper list
+  dotkeeper schedule enable`
 	fmt.Println(help)
 }

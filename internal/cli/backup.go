@@ -8,6 +8,7 @@ import (
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/keyring"
+	"github.com/diogo/dotkeeper/internal/notify"
 )
 
 // BackupCommand handles the backup subcommand

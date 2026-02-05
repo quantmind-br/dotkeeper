@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -152,6 +153,56 @@ func StatusSchedule() error {
 	}
 
 	return nil
+}
+
+// ScheduleCommand handles the schedule CLI command for managing systemd timer
+func ScheduleCommand(args []string) int {
+	fs := flag.NewFlagSet("schedule", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: dotkeeper schedule [enable|disable|status]\n\n")
+		fmt.Fprintf(os.Stderr, "Manage automated backup scheduling.\n\n")
+		fmt.Fprintf(os.Stderr, "Subcommands:\n")
+		fmt.Fprintf(os.Stderr, "  enable   Enable the systemd timer for automated backups\n")
+		fmt.Fprintf(os.Stderr, "  disable  Disable the systemd timer\n")
+		fmt.Fprintf(os.Stderr, "  status   Show the status of the systemd timer\n")
+	}
+
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing flags: %v\n", err)
+		return 1
+	}
+
+	if fs.NArg() < 1 {
+		fs.Usage()
+		return 1
+	}
+
+	subcommand := fs.Arg(0)
+
+	switch subcommand {
+	case "enable":
+		if err := EnableSchedule(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		return 0
+	case "disable":
+		if err := DisableSchedule(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		return 0
+	case "status":
+		if err := StatusSchedule(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		return 0
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", subcommand)
+		fs.Usage()
+		return 1
+	}
 }
 
 // Helper functions
