@@ -16,8 +16,10 @@ func RestoreCommand(args []string) int {
 	fs := flag.NewFlagSet("restore", flag.ExitOnError)
 	force := fs.Bool("force", false, "Overwrite existing files without prompting")
 	passwordFile := fs.String("password-file", "", "Path to file containing password")
+	dryRun := fs.Bool("dry-run", false, "Preview restore without making changes")
+	showDiff := fs.Bool("diff", false, "Show differences between backup and current files")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: dotkeeper restore [backup-name] [--force] [--password-file PATH]\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: dotkeeper restore [backup-name] [options]\n\n")
 		fmt.Fprintf(os.Stderr, "Restore dotfiles from a backup.\n\n")
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		fs.PrintDefaults()
@@ -70,7 +72,12 @@ func RestoreCommand(args []string) int {
 	fmt.Printf("Restoring from %s...\n", backupName)
 
 	opts := restore.RestoreOptions{
-		Force: *force,
+		Force:    *force,
+		DryRun:   *dryRun,
+		ShowDiff: *showDiff,
+	}
+	if *showDiff {
+		opts.DiffWriter = os.Stdout
 	}
 
 	result, err := restore.Restore(backupPath, password, opts)
@@ -80,6 +87,18 @@ func RestoreCommand(args []string) int {
 	}
 
 	// Print results
+	if *dryRun {
+		fmt.Printf("✓ Dry run completed\n")
+		fmt.Printf("  Would restore: %d files\n", result.FilesRestored)
+		if result.FilesSkipped > 0 {
+			fmt.Printf("  Would skip: %d files\n", result.FilesSkipped)
+		}
+		if len(result.BackupFiles) > 0 {
+			fmt.Printf("  Would create backups: %d files\n", len(result.BackupFiles))
+		}
+		return 0
+	}
+
 	if result.FilesSkipped > 0 {
 		fmt.Printf("⚠ Restore completed with warnings\n")
 		fmt.Printf("  Files restored: %d\n", result.FilesRestored)
