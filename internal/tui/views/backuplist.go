@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
 )
@@ -173,16 +172,13 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m BackupListModel) View() string {
 	var s strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	styles := DefaultStyles()
 
 	if m.creatingBackup {
-		s.WriteString(titleStyle.Render("Create New Backup") + "\n\n")
+		s.WriteString(styles.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(helpStyle.Render("Press Enter to create backup, Esc to cancel"))
+		s.WriteString(styles.Help.Render("Press Enter to create backup, Esc to cancel"))
 		return s.String()
 	}
 
@@ -190,13 +186,13 @@ func (m BackupListModel) View() string {
 	s.WriteString("\n")
 
 	if m.backupStatus != "" {
-		s.WriteString(successStyle.Render(m.backupStatus) + "\n")
+		s.WriteString(styles.Success.Render(m.backupStatus) + "\n")
 	}
 	if m.backupError != "" {
-		s.WriteString(errorStyle.Render(m.backupError) + "\n")
+		s.WriteString(styles.Error.Render(m.backupError) + "\n")
 	}
 
-	s.WriteString(helpStyle.Render("n: new backup | r: refresh | ↑/↓: navigate"))
+	s.WriteString(styles.Help.Render("n: new backup | r: refresh | ↑/↓: navigate"))
 
 	return s.String()
 }

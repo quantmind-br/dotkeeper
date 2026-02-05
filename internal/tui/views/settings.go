@@ -10,6 +10,8 @@ import (
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
+// Keep lipgloss import for cursor/prompt styles (component configuration)
+
 // SettingsModel represents the settings view
 type SettingsModel struct {
 	config         *config.Config
@@ -291,17 +293,13 @@ func (m *SettingsModel) saveFieldValue(value string) {
 func (m SettingsModel) View() string {
 	var b strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	labelStyle := lipgloss.NewStyle().Bold(true)
-	valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
-	selectedStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Background(lipgloss.Color("#2A2A2A"))
-	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Italic(true)
+	styles := DefaultStyles()
 
 	if m.editMode {
-		b.WriteString(titleStyle.Render("Settings [EDIT MODE]") + "\n\n")
+		b.WriteString(styles.Title.Render("Settings [EDIT MODE]") + "\n\n")
 	} else {
-		b.WriteString(titleStyle.Render("Settings") + "\n")
-		b.WriteString(hintStyle.Render("Press 'e' to edit") + "\n\n")
+		b.WriteString(styles.Title.Render("Settings") + "\n")
+		b.WriteString(styles.Hint.Render("Press 'e' to edit") + "\n\n")
 	}
 
 	if m.editingField {
@@ -321,73 +319,73 @@ func (m SettingsModel) View() string {
 		isSelected := m.editMode && m.cursor == i && !m.editingFiles && !m.editingFolders
 
 		if isSelected {
-			b.WriteString(selectedStyle.Render(field + ": "))
+			b.WriteString(styles.Selected.Render(field + ": "))
 		} else {
-			b.WriteString(labelStyle.Render(field + ": "))
+			b.WriteString(styles.Label.Render(field + ": "))
 		}
 
 		switch i {
 		case 0:
-			b.WriteString(valueStyle.Render(m.config.BackupDir) + "\n")
+			b.WriteString(styles.Value.Render(m.config.BackupDir) + "\n")
 		case 1:
-			b.WriteString(valueStyle.Render(m.config.GitRemote) + "\n")
+			b.WriteString(styles.Value.Render(m.config.GitRemote) + "\n")
 		case 2:
 			if m.editingFiles {
 				b.WriteString("\n")
 				for j, f := range m.config.Files {
 					if m.fileCursor == j {
-						b.WriteString(selectedStyle.Render("  ["+fmt.Sprintf("%d", j)+"] "+f) + "\n")
+						b.WriteString(styles.Selected.Render("  ["+fmt.Sprintf("%d", j)+"] "+f) + "\n")
 					} else {
 						b.WriteString("  [" + fmt.Sprintf("%d", j) + "] " + f + "\n")
 					}
 				}
 				if m.fileCursor == len(m.config.Files) {
-					b.WriteString(selectedStyle.Render("  [+] Add new file") + "\n")
+					b.WriteString(styles.Selected.Render("  [+] Add new file") + "\n")
 				} else {
 					b.WriteString("  [+] Add new file\n")
 				}
 			} else {
-				b.WriteString(valueStyle.Render(fmt.Sprintf("%d files", len(m.config.Files))) + "\n")
+				b.WriteString(styles.Value.Render(fmt.Sprintf("%d files", len(m.config.Files))) + "\n")
 			}
 		case 3:
 			if m.editingFolders {
 				b.WriteString("\n")
 				for j, f := range m.config.Folders {
 					if m.folderCursor == j {
-						b.WriteString(selectedStyle.Render("  ["+fmt.Sprintf("%d", j)+"] "+f) + "\n")
+						b.WriteString(styles.Selected.Render("  ["+fmt.Sprintf("%d", j)+"] "+f) + "\n")
 					} else {
 						b.WriteString("  [" + fmt.Sprintf("%d", j) + "] " + f + "\n")
 					}
 				}
 				if m.folderCursor == len(m.config.Folders) {
-					b.WriteString(selectedStyle.Render("  [+] Add new folder") + "\n")
+					b.WriteString(styles.Selected.Render("  [+] Add new folder") + "\n")
 				} else {
 					b.WriteString("  [+] Add new folder\n")
 				}
 			} else {
-				b.WriteString(valueStyle.Render(fmt.Sprintf("%d folders", len(m.config.Folders))) + "\n")
+				b.WriteString(styles.Value.Render(fmt.Sprintf("%d folders", len(m.config.Folders))) + "\n")
 			}
 		case 4:
 			if m.config.Schedule != "" {
-				b.WriteString(valueStyle.Render(m.config.Schedule) + "\n")
+				b.WriteString(styles.Value.Render(m.config.Schedule) + "\n")
 			} else {
-				b.WriteString(valueStyle.Render("Not scheduled") + "\n")
+				b.WriteString(styles.Value.Render("Not scheduled") + "\n")
 			}
 		case 5:
-			b.WriteString(valueStyle.Render(fmt.Sprintf("%v", m.config.Notifications)) + "\n")
+			b.WriteString(styles.Value.Render(fmt.Sprintf("%v", m.config.Notifications)) + "\n")
 		}
 	}
 
 	if m.editMode {
-		b.WriteString("\n" + hintStyle.Render("↑/↓: Navigate | Enter: Edit | a: Add | d: Delete | s: Save | Esc: Exit") + "\n")
+		b.WriteString("\n" + styles.Hint.Render("↑/↓: Navigate | Enter: Edit | a: Add | d: Delete | s: Save | Esc: Exit") + "\n")
 	}
 
 	if m.err != "" {
 		var errStyle lipgloss.Style
 		if strings.Contains(m.err, "success") {
-			errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575")) // Green
+			errStyle = styles.Success
 		} else {
-			errStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B")) // Red
+			errStyle = styles.Error
 		}
 		b.WriteString("\n" + errStyle.Render(m.err) + "\n")
 	}

@@ -120,6 +120,11 @@ func (m RestoreModel) Init() tea.Cmd {
 	return m.refreshBackups()
 }
 
+// Refresh reloads the backup list
+func (m RestoreModel) Refresh() tea.Cmd {
+	return m.refreshBackups()
+}
+
 // refreshBackups scans the backup directory and loads available backups
 func (m RestoreModel) refreshBackups() tea.Cmd {
 	return func() tea.Msg {
@@ -443,10 +448,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m RestoreModel) View() string {
 	var s strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5555"))
-	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
+	styles := DefaultStyles()
 
 	// Phase 0: Backup list selection
 	if m.phase == 0 {
@@ -454,66 +456,65 @@ func (m RestoreModel) View() string {
 		s.WriteString("\n")
 
 		if m.restoreStatus != "" {
-			s.WriteString(statusStyle.Render(m.restoreStatus) + "\n")
+			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
 		}
 		if m.restoreError != "" {
-			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
 		}
 
-		s.WriteString(helpStyle.Render("↑/↓: navigate | Enter: select | r: refresh"))
+		s.WriteString(styles.Help.Render("↑/↓: navigate | Enter: select | r: refresh"))
 		return s.String()
 	}
 
 	// Phase 1: Password entry
 	if m.phase == 1 {
-		s.WriteString(titleStyle.Render("Enter Password") + "\n\n")
+		s.WriteString(styles.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
 
 		if m.restoreStatus != "" {
-			s.WriteString(statusStyle.Render(m.restoreStatus) + "\n")
+			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
 		}
 		if m.restoreError != "" {
-			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
 		}
 
-		s.WriteString(helpStyle.Render("Enter: validate | Esc: back"))
+		s.WriteString(styles.Help.Render("Enter: validate | Esc: back"))
 		return s.String()
 	}
 
 	// Phase 2: File selection
 	if m.phase == 2 {
-		s.WriteString(titleStyle.Render("Select Files to Restore") + "\n\n")
+		s.WriteString(styles.Title.Render("Select Files to Restore") + "\n\n")
 
 		selectedCount := m.countSelectedFiles()
 		totalCount := len(m.selectedFiles)
-		countStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
-		s.WriteString(countStyle.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
+		s.WriteString(styles.Value.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
 
 		s.WriteString(m.fileList.View())
 		s.WriteString("\n")
 
 		if m.restoreStatus != "" {
-			s.WriteString(statusStyle.Render(m.restoreStatus) + "\n")
+			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
 		}
 		if m.restoreError != "" {
-			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
 		}
 
-		s.WriteString(helpStyle.Render("Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
+		s.WriteString(styles.Help.Render("Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
 		return s.String()
 	}
 
 	// Phase 3: Restoring
 	if m.phase == 3 {
-		s.WriteString(titleStyle.Render("Restoring...") + "\n\n")
+		s.WriteString(styles.Title.Render("Restoring...") + "\n\n")
 		s.WriteString(m.restoreStatus)
 		return s.String()
 	}
 
 	// Phase 4: Diff preview
 	if m.phase == 4 {
-		s.WriteString(titleStyle.Render("Diff Preview") + "\n")
+		s.WriteString(styles.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
 		viewportStyle := lipgloss.NewStyle().
@@ -525,21 +526,21 @@ func (m RestoreModel) View() string {
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
 
 		if m.restoreError != "" {
-			s.WriteString(errorStyle.Render(m.restoreError) + "\n")
+			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
 		}
 
-		s.WriteString(helpStyle.Render("j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
+		s.WriteString(styles.Help.Render("j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
 		return s.String()
 	}
 
 	// Phase 5: Results
 	if m.phase == 5 {
-		s.WriteString(titleStyle.Render("Restore Complete") + "\n\n")
+		s.WriteString(styles.Title.Render("Restore Complete") + "\n\n")
 
 		if m.restoreError != "" {
-			s.WriteString(errorStyle.Render(m.restoreError) + "\n\n")
+			s.WriteString(styles.Error.Render(m.restoreError) + "\n\n")
 		} else if m.restoreResult != nil {
-			s.WriteString(statusStyle.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
+			s.WriteString(styles.Success.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
 
 			if len(m.restoreResult.BackupFiles) > 0 {
 				s.WriteString(fmt.Sprintf("  %d .bak files created\n", len(m.restoreResult.BackupFiles)))
@@ -567,11 +568,11 @@ func (m RestoreModel) View() string {
 			}
 		}
 
-		s.WriteString(helpStyle.Render("Press any key to continue"))
+		s.WriteString(styles.Help.Render("Press any key to continue"))
 		return s.String()
 	}
 
-	s.WriteString(titleStyle.Render("Restore") + "\n\n")
+	s.WriteString(styles.Title.Render("Restore") + "\n\n")
 	s.WriteString("Phase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)")
 
 	return s.String()

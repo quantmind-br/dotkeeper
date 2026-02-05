@@ -2,7 +2,6 @@ package views
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
@@ -37,6 +36,6 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the logs view
 func (m LogsModel) View() string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	return titleStyle.Render("Logs") + "\n\nOperation history will be displayed here (implementation pending)"
+	styles := DefaultStyles()
+	return styles.Title.Render("Logs") + "\n\nOperation history will be displayed here (implementation pending)"
 }

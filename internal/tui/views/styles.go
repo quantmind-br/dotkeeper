@@ -1,4 +1,4 @@
-package tui
+package views
 
 import "github.com/charmbracelet/lipgloss"
 
@@ -11,6 +11,9 @@ type Styles struct {
 	Help     lipgloss.Style
 	Error    lipgloss.Style
 	Success  lipgloss.Style
+	Label    lipgloss.Style
+	Value    lipgloss.Style
+	Hint     lipgloss.Style
 }
 
 // DefaultStyles returns the default styles
@@ -33,8 +36,15 @@ func DefaultStyles() Styles {
 			Foreground(lipgloss.Color("#666666")).
 			MarginLeft(2),
 		Error: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF0000")),
+			Foreground(lipgloss.Color("#FF5555")),
 		Success: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#00FF00")),
+			Foreground(lipgloss.Color("#04B575")),
+		Label: lipgloss.NewStyle().
+			Bold(true),
+		Value: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#AAAAAA")),
+		Hint: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666666")).
+			Italic(true),
 	}
 }

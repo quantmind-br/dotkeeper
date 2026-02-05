@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
@@ -50,8 +49,8 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m DashboardModel) View() string {
 	var s string
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	s += titleStyle.Render("Dashboard") + "\n\n"
+	styles := DefaultStyles()
+	s += styles.Title.Render("Dashboard") + "\n\n"
 
 	// Status section
 	if !m.lastBackup.IsZero() {
