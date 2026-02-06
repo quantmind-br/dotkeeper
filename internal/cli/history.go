@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // HistoryCommand handles the history subcommand
@@ -80,7 +81,7 @@ func printHistoryTable(entries []history.HistoryEntry) {
 		if entry.FileCount == 0 && entry.Status == "error" {
 			fileCount = "-"
 		}
-		size := formatSize(entry.TotalSize)
+		size := pathutil.FormatSize(entry.TotalSize)
 		if entry.TotalSize == 0 && entry.Status == "error" {
 			size = "-"
 		}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/crypto"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // BackupInfo contains information about a backup
@@ -149,10 +150,10 @@ func printBackupTable(backups []BackupInfo) {
 
 	for _, backup := range backups {
 		created := backup.Created.Format("2006-01-02 15:04:05")
-		size := formatSize(backup.Size)
+		size := pathutil.FormatSize(backup.Size)
 		originalSize := "-"
 		if backup.OriginalSize > 0 {
-			originalSize = formatSize(backup.OriginalSize)
+			originalSize = pathutil.FormatSize(backup.OriginalSize)
 		}
 
 		fmt.Printf("%-40s %-20s %-12s %-12s\n",
@@ -166,18 +167,3 @@ func printBackupTable(backups []BackupInfo) {
 	fmt.Printf("\nTotal: %d backup(s)\n", len(backups))
 }
 
-// formatSize formats a size in bytes to a human-readable string
-func formatSize(size int64) string {
-	const unit = 1024
-	if size < unit {
-		return fmt.Sprintf("%d B", size)
-	}
-
-	div, exp := int64(unit), 0
-	for n := size / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-
-	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
-}

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
@@ -41,7 +42,7 @@ func (i logItem) Title() string {
 }
 
 func (i logItem) Description() string {
-	size := formatBytes(i.entry.TotalSize)
+	size := pathutil.FormatSize(i.entry.TotalSize)
 	// Duration
 	duration := time.Duration(i.entry.DurationMs) * time.Millisecond
 	return fmt.Sprintf("%d files, %s, %s", i.entry.FileCount, size, duration.String())
@@ -51,19 +52,6 @@ func (i logItem) FilterValue() string {
 	return i.entry.Operation
 }
 
-// formatBytes converts bytes to human readable string
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
 
 // NewLogs creates a new logs model.
 func NewLogs(ctx *ProgramContext) LogsModel {

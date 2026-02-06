@@ -433,7 +433,7 @@ func (m SetupModel) View() string {
 					checked = "[x]"
 				}
 
-				label := fmt.Sprintf("%s %s %s (%s)", cursor, checked, p.Path, formatBytes(p.Size))
+				label := fmt.Sprintf("%s %s %s (%s)", cursor, checked, p.Path, pathutil.FormatSize(p.Size))
 				if i == m.presetCursor {
 					s.WriteString(st.Selected.Render(label) + "\n")
 				} else {
@@ -462,7 +462,7 @@ func (m SetupModel) View() string {
 				}
 
 				fileCount := fmt.Sprintf("%d files", p.FileCount)
-				label := fmt.Sprintf("%s %s %s (%s, %s)", cursor, checked, p.Path, fileCount, formatBytes(p.Size))
+				label := fmt.Sprintf("%s %s %s (%s, %s)", cursor, checked, p.Path, fileCount, pathutil.FormatSize(p.Size))
 				if i == m.presetCursor {
 					s.WriteString(st.Selected.Render(label) + "\n")
 				} else {
