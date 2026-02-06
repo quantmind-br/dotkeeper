@@ -46,6 +46,7 @@ func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
 	l := styles.NewMinimalList()
 
 	ti := components.NewPasswordInput("Enter password for encryption")
+	ti.Width = 40 // Default width, will be adjusted on WindowSizeMsg
 
 	return BackupListModel{
 		config:        cfg,
@@ -100,6 +101,15 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.list.SetSize(msg.Width, msg.Height)
+		// Responsive password input width
+		pw := msg.Width - 6
+		if pw < 20 {
+			pw = 20
+		}
+		if pw > 60 {
+			pw = 60
+		}
+		m.passwordInput.Width = pw
 
 	case backupsLoadedMsg:
 		m.list.SetItems([]list.Item(msg))

@@ -466,7 +466,11 @@ func (m SetupModel) View() string {
 
 		if m.browsing {
 			s.WriteString("Browse for files:\n\n")
-			s.WriteString(m.filePicker.View())
+			fpView := m.filePicker.View()
+			if m.width > 0 {
+				fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+			}
+			s.WriteString(fpView)
 			helpText = "Enter: select | ↑/↓: navigate | Esc: cancel"
 		} else {
 			s.WriteString("Enter additional file paths to backup (one per line).\n")
@@ -493,7 +497,11 @@ func (m SetupModel) View() string {
 
 		if m.browsing {
 			s.WriteString("Browse for folders:\n\n")
-			s.WriteString(m.filePicker.View())
+			fpView := m.filePicker.View()
+			if m.width > 0 {
+				fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+			}
+			s.WriteString(fpView)
 			helpText = "Enter: select | ↑/↓: navigate | Esc: cancel"
 		} else {
 			s.WriteString("Enter additional folder paths to backup (one per line).\n")

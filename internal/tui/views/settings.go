@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
@@ -732,7 +733,11 @@ func (m SettingsModel) View() string {
 			title = "Browse Folders"
 		}
 		b.WriteString(st.Subtitle.Render(title) + "\n")
-		b.WriteString(m.filePicker.View())
+		fpView := m.filePicker.View()
+		if m.width > 0 {
+			fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+		}
+		b.WriteString(fpView)
 	}
 
 	if m.inspecting && m.inspectInfo != "" {

@@ -107,6 +107,7 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	l := styles.NewMinimalList()
 
 	ti := components.NewPasswordInput("Enter password for decryption")
+	ti.Width = 40 // Default width, will be adjusted on WindowSizeMsg
 
 	fl := styles.NewMinimalList()
 
@@ -382,6 +383,15 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.viewport.Height < 0 {
 			m.viewport.Height = 0
 		}
+		// Responsive password input width
+		pw := msg.Width - 6
+		if pw < 20 {
+			pw = 20
+		}
+		if pw > 60 {
+			pw = 60
+		}
+		m.passwordInput.Width = pw
 
 	case backupsLoadedMsg:
 		m.backupList.SetItems([]list.Item(msg))
