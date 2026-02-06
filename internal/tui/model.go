@@ -25,9 +25,10 @@ const (
 // tabOrder defines the views accessible via tabs (excludes FileBrowser and Setup)
 var tabOrder = []ViewState{DashboardView, BackupListView, RestoreView, SettingsView, LogsView}
 
-// mainChromeHeight is the total number of lines consumed by the main view
-// frame: app title (1) + tab bar (1) + spacer (1) + post-content spacer (1) + global help footer (1) = 5.
-const mainChromeHeight = 5
+// mainChromeHeight is the total terminal rows consumed by the main view frame:
+// app title (1) + tab bar (1) + blank after tabs (1) + blank after content (1)
+// + view help (1) + global help (1) + trailing newline (1) = 7.
+const mainChromeHeight = 7
 
 // Model represents the main TUI model
 type Model struct {

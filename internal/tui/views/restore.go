@@ -369,10 +369,10 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.backupList.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
-		m.fileList.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
+		m.backupList.SetSize(msg.Width, msg.Height)
+		m.fileList.SetSize(msg.Width, msg.Height)
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - styles.ViewChromeHeight
+		m.viewport.Height = msg.Height
 
 	case backupsLoadedMsg:
 		m.backupList.SetItems([]list.Item(msg))
@@ -486,7 +486,7 @@ func (m RestoreModel) View() string {
 	if m.phase == phaseBackupList {
 		s.WriteString(m.backupList.View())
 		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "↑/↓: navigate | Enter: select | r: refresh"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -495,7 +495,7 @@ func (m RestoreModel) View() string {
 		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Enter: validate | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -509,14 +509,14 @@ func (m RestoreModel) View() string {
 
 		s.WriteString(m.fileList.View())
 		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
 	// Phase 3: Restoring
 	if m.phase == phaseRestoring {
 		s.WriteString(st.Title.Render("Restoring...") + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Please wait..."))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -527,10 +527,10 @@ func (m RestoreModel) View() string {
 
 		viewportStyle := st.ViewportBorder.Copy().
 			Width(m.width - 4).
-			Height(m.height - styles.ViewChromeHeight - 4)
+			Height(m.height - 4)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
-		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, "j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, ""))
 		return s.String()
 	}
 
@@ -569,7 +569,6 @@ func (m RestoreModel) View() string {
 			}
 		}
 
-		s.WriteString(RenderStatusBar(m.width, "", "", "Press any key to continue"))
 		return s.String()
 	}
 
@@ -616,7 +615,25 @@ func (m RestoreModel) HelpBindings() []HelpEntry {
 	}
 }
 
-// IsInputActive returns true when the restore view is in a phase that consumes keyboard input.
+func (m RestoreModel) StatusHelpText() string {
+	switch m.phase {
+	case phaseBackupList:
+		return "↑/↓: navigate | Enter: select | r: refresh"
+	case phasePassword:
+		return "Enter: validate | Esc: back"
+	case phaseFileSelect:
+		return "Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"
+	case phaseRestoring:
+		return "Please wait..."
+	case phaseDiffPreview:
+		return "j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"
+	case phaseResults:
+		return "Press any key to continue"
+	default:
+		return ""
+	}
+}
+
 func (m RestoreModel) IsInputActive() bool {
 	return m.phase == phasePassword
 }

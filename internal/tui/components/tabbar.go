@@ -42,7 +42,7 @@ func (tb TabBar) View(activeIndex int, width int) string {
 	}
 
 	// Determine if we should use abbreviated labels
-	useShort := width < 80
+	useShort := width < styles.BreakpointWide
 
 	// Build tab strings
 	var tabs []string

@@ -99,7 +99,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
+		m.list.SetSize(msg.Width, msg.Height)
 
 	case backupsLoadedMsg:
 		m.list.SetItems([]list.Item(msg))
@@ -210,7 +210,6 @@ func (m BackupListModel) View() string {
 	if m.confirmingDelete {
 		s.WriteString(st.Title.Render("Delete Backup") + "\n\n")
 		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", st.Value.Render(m.deleteTarget)))
-		s.WriteString(RenderStatusBar(m.width, "", "", "y: confirm | any other key: cancel"))
 		return s.String()
 	}
 
@@ -218,7 +217,7 @@ func (m BackupListModel) View() string {
 		s.WriteString(st.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, "Press Enter to create backup, Esc to cancel"))
+		s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, ""))
 		return s.String()
 	}
 
@@ -226,7 +225,7 @@ func (m BackupListModel) View() string {
 	s.WriteString(m.list.View())
 	s.WriteString("\n")
 
-	s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, "n: new backup | d: delete | r: refresh | ↑/↓: navigate"))
+	s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, ""))
 
 	return s.String()
 }
@@ -252,7 +251,16 @@ func (m BackupListModel) HelpBindings() []HelpEntry {
 	}
 }
 
-// IsCreating returns true when the backup list is in backup creation mode (password input).
+func (m BackupListModel) StatusHelpText() string {
+	if m.confirmingDelete {
+		return "y: confirm | any other key: cancel"
+	}
+	if m.creatingBackup {
+		return "Press Enter to create backup, Esc to cancel"
+	}
+	return "n: new backup | d: delete | r: refresh | ↑/↓: navigate"
+}
+
 func (m BackupListModel) IsCreating() bool {
 	return m.creatingBackup || m.confirmingDelete
 }

@@ -5,8 +5,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ViewChromeHeight accounts for title, tabbar, help, and margins
-const ViewChromeHeight = 6
+// Responsive breakpoint constants
+const (
+	BreakpointWide    = 80 // Full horizontal layout (cards, tabs)
+	BreakpointMedium  = 60 // Medium layout (action buttons horizontal)
+	MinTerminalWidth  = 40 // Minimum supported terminal width
+	MinTerminalHeight = 15 // Minimum supported terminal height
+)
 
 // Styles holds common styles for the TUI
 type Styles struct {

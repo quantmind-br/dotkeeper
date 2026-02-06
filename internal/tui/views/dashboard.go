@@ -118,7 +118,7 @@ func (m DashboardModel) View() string {
 	}
 
 	var statsBlock string
-	if m.width >= 80 {
+	if m.width >= styles.BreakpointWide {
 		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 	} else {
 		// Split into rows if needed, simplified for now
@@ -135,31 +135,25 @@ func (m DashboardModel) View() string {
 	for i, action := range dashboardActions {
 		icon := buttonIcons[action.key]
 		label := icon + "  " + action.label
-		shortcut := st.Help.Render("[" + action.key + "]")
 
 		btnStyle := st.ButtonNormal
 		if i == m.selected {
 			btnStyle = st.ButtonSelected
 		}
-		btnContent := btnStyle.Render(label)
-		actionButtons = append(actionButtons, lipgloss.JoinVertical(lipgloss.Center, btnContent, shortcut))
+		actionButtons = append(actionButtons, btnStyle.Render(label))
 	}
 
 	var actionsBlock string
-	if m.width >= 60 {
+	if m.width >= styles.BreakpointMedium {
 		actionsBlock = lipgloss.JoinHorizontal(lipgloss.Top, actionButtons...)
 	} else {
 		actionsBlock = lipgloss.JoinVertical(lipgloss.Left, actionButtons...)
 	}
 
-	statusBar := RenderStatusBar(m.width, "", "", "←/→: select | enter: open | b/r/s: shortcuts")
-
 	return lipgloss.JoinVertical(lipgloss.Left,
 		statsBlock,
 		"\n",
 		actionsBlock,
-		"\n",
-		statusBar,
 	)
 }
 

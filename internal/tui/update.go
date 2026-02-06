@@ -39,12 +39,16 @@ func DefaultKeyMap() KeyMap {
 var keys = DefaultKeyMap()
 
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
+	viewWidth := msg.Width
+	if viewWidth < 0 {
+		viewWidth = 0
+	}
 	viewHeight := msg.Height - mainChromeHeight
 	if viewHeight < 0 {
 		viewHeight = 0
 	}
 	viewMsg := tea.WindowSizeMsg{
-		Width:  msg.Width,
+		Width:  viewWidth,
 		Height: viewHeight,
 	}
 

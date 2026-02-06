@@ -679,11 +679,7 @@ func (m SettingsModel) scanPathDescs() tea.Cmd {
 
 func (m *SettingsModel) resizeLists() {
 	width := m.width
-	if width <= 0 {
-		width = 80
-	}
-
-	height := m.height - styles.ViewChromeHeight
+	height := m.height
 	if m.state == stateEditingField || m.state == stateEditingSubItem {
 		height -= 2
 	}
@@ -708,23 +704,18 @@ func (m SettingsModel) View() string {
 
 	b.WriteString(st.Title.Render("Settings") + "\n\n")
 
-	helpText := ""
 	switch m.state {
 	case stateListNavigating:
 		b.WriteString(m.mainList.View())
-		helpText = "↑/↓: Navigate | Enter: Edit | a: Add | s: Save | Esc: Exit"
 	case stateEditingField:
 		b.WriteString("Editing: " + m.pathCompleter.View() + "\n\n")
 		b.WriteString(m.mainList.View())
-		helpText = "Enter: Save field | Esc: Cancel"
 	case stateBrowsingFiles:
 		b.WriteString(st.Subtitle.Render("Files") + "\n")
 		b.WriteString(m.filesList.View())
-		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateBrowsingFolders:
 		b.WriteString(st.Subtitle.Render("Folders") + "\n")
 		b.WriteString(m.foldersList.View())
-		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateEditingSubItem:
 		title := "Editing File"
 		listView := m.filesList.View()
@@ -735,7 +726,6 @@ func (m SettingsModel) View() string {
 		b.WriteString(st.Subtitle.Render(title) + "\n")
 		b.WriteString("Value: " + m.pathCompleter.View() + "\n\n")
 		b.WriteString(listView)
-		helpText = "Enter: Save item | Esc: Cancel"
 	case stateFilePickerActive:
 		title := "Browse Files"
 		if m.filePickerParent == stateBrowsingFolders {
@@ -743,7 +733,6 @@ func (m SettingsModel) View() string {
 		}
 		b.WriteString(st.Subtitle.Render(title) + "\n")
 		b.WriteString(m.filePicker.View())
-		helpText = "Enter: Select | ↑/↓: Navigate | Esc: Cancel"
 	}
 
 	if m.inspecting && m.inspectInfo != "" {
@@ -752,7 +741,7 @@ func (m SettingsModel) View() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n" + RenderStatusBar(m.width, m.status, m.errMsg, helpText))
+	b.WriteString("\n" + RenderStatusBar(m.width, m.status, m.errMsg, ""))
 
 	return b.String()
 }
@@ -800,8 +789,23 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 	}
 }
 
-// IsEditing returns true when the user is actively editing a field or browsing,
-// so that global tab navigation is only blocked during those interactions.
+func (m SettingsModel) StatusHelpText() string {
+	switch m.state {
+	case stateListNavigating:
+		return "↑/↓: Navigate | Enter: Edit | a: Add | s: Save | Esc: Exit"
+	case stateEditingField:
+		return "Enter: Save field | Esc: Cancel"
+	case stateBrowsingFiles, stateBrowsingFolders:
+		return "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
+	case stateEditingSubItem:
+		return "Enter: Save item | Esc: Cancel"
+	case stateFilePickerActive:
+		return "Enter: Select | ↑/↓: Navigate | Esc: Cancel"
+	default:
+		return ""
+	}
+}
+
 func (m SettingsModel) IsEditing() bool {
 	return m.state != stateListNavigating
 }

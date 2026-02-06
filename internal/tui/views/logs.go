@@ -120,7 +120,7 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		// Adjust list size. Reserve space for chrome
-		m.list.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
+		m.list.SetSize(msg.Width, msg.Height)
 
 	case logsLoadedMsg:
 		items := make([]list.Item, len(msg))
@@ -190,10 +190,13 @@ func (m LogsModel) View() string {
 		s.WriteString(m.list.View())
 	}
 
-	helpText := fmt.Sprintf("f: filter (%s) | r: refresh | ↑/↓: navigate", m.filter)
-	s.WriteString(RenderStatusBar(m.width, "", m.err, helpText))
+	s.WriteString(RenderStatusBar(m.width, "", m.err, ""))
 
 	return s.String()
+}
+
+func (m LogsModel) StatusHelpText() string {
+	return fmt.Sprintf("f: filter (%s) | r: refresh | ↑/↓: navigate", m.filter)
 }
 
 func (m LogsModel) HelpBindings() []HelpEntry {
