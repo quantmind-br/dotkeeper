@@ -1,42 +1,54 @@
-# Code Quality & Refactoring Plan
+# Code Quality & Refactoring Analysis Report
 
 **Generated:** 2026-02-06
-**Branch:** master
-**Analyzed:** 77 Go files (~12,700 lines of production + test code)
-**Reviewed:** 2026-02-06 (critical analysis applied — 1 discarded, 2 adjusted, 16 kept)
+**Branch:** feat/settings-inline-actions
+**Commit:** a0cc9df
+**Total Files Analyzed:** 55 source files (excluding tests), 100 total Go files
+**Total Lines:** ~32,700
+**Reviewed:** 2026-02-06 (critical analysis applied, 1 item discarded, 4 adjusted, 2 merged)
 
 ---
 
 ## Executive Summary
 
-The dotkeeper codebase is well-structured — clean package boundaries, consistent error wrapping, good test coverage. Issues concentrate in the TUI layer: code duplication and file size. Business logic packages (`backup/`, `restore/`, `crypto/`, `config/`) are clean.
+The dotkeeper codebase is **generally well-structured** for a Go+BubbleTea project. Code is well-organized into packages with clear responsibilities, crypto is implemented correctly (AES-256-GCM + Argon2id), and the project follows atomic-write patterns consistently.
 
-**One functional bug found**: CQ-015 (`Validate()` requires `GitRemote` but setup allows it empty — produces broken configs).
+**Key areas needing attention:**
+1. **3 oversized TUI view files** (settings.go 857 lines, restore.go 721 lines, setup.go 578 lines) with long functions that should be decomposed
+2. **4 duplicate size-formatting implementations** across CLI and TUI layers
+3. **11 repetitive type assertions** in the TUI update loop that could use a generic helper
+4. **3 dead message types** defined but never used
+5. **2 dead components** (`FileSelector`, `DiffViewer`) defined but never integrated
+
+The codebase has **zero** `any` types, **zero** `@ts-ignore` equivalents, and **no globals** in the TUI layer — all strong signals of disciplined engineering.
 
 ---
 
-## Phase 1 — Quick Wins (trivial effort, high impact)
+## Phase 1: Quick Wins (< 1 hour)
 
-### CQ-015: Validate() GitRemote Inconsistency [BUG]
+High-value, trivial-effort items. Do these first.
 
-**Category:** code_smells → **functional bug**
-**Severity:** critical (upgraded from minor)
+### CQ-001: Size Formatting Duplicated 4 Times
+
+**Category:** duplication
+**Severity:** major
 
 **Affected Files:**
-- `internal/config/config.go` (lines 105-119)
+- `internal/pathutil/scanner.go` (lines 105-121) — `FormatSize()` (exported, canonical)
+- `internal/cli/list.go` (lines 170-183) — `formatSize()` (private duplicate)
+- `internal/cli/history.go` (line 83) — calls `formatSize()` from list.go
+- `internal/tui/views/logs.go` (lines 55-66) — `formatBytes()` (private duplicate)
 
 **Current State:**
-`Validate()` requires `GitRemote` to be non-empty, but the setup wizard allows it to be empty (Step 2 says "optional"). Configs created by setup may fail validation.
+Three separate implementations of byte-to-human-readable conversion. `pathutil.FormatSize()` uses named constants (KB, MB, GB), while `cli/list.go:formatSize()` and `views/logs.go:formatBytes()` use an identical loop-based algorithm with `"KMGTPE"[exp]`. All produce **identical output**.
 
-```go
-func (c *Config) Validate() error {
-    if c.GitRemote == "" {
-        return fmt.Errorf("git_remote is required") // But setup allows empty!
-    }
-}
-```
+**Callers of each:**
+- `pathutil.FormatSize()`: dashboard.go:128, settings.go:629, scanner.go:142/144
+- `cli.formatSize()`: list.go:152/155, history.go:83
+- `views.formatBytes()`: logs.go:44, setup.go:436/465
 
-**Fix:** Make `GitRemote` optional in `Validate()`. Git operations should check for empty remote at call time, not at config validation time.
+**Change:**
+Remove all private implementations. Use `pathutil.FormatSize()` everywhere — it's already exported and used by `dashboard.go` and `settings.go`.
 
 **Breaking Change:** No
 **Prerequisites:** None
@@ -44,377 +56,436 @@ func (c *Config) Validate() error {
 
 ---
 
-### CQ-008: Dead Code — `getFieldValue` in cli/config.go
+### CQ-005: Dead Message Types in messages.go
+
+**Category:** dead_code
+**Severity:** major
+
+**Affected Files:**
+- `internal/tui/views/messages.go` (lines 10-29)
+
+**Current State:**
+Three message types are defined but never instantiated anywhere in the codebase — zero instantiations, zero switch cases, zero references:
+
+```go
+type SuccessMsg struct { Source string; Message string }  // NEVER USED
+type LoadingMsg struct { Source string; Message string }   // NEVER USED
+type RefreshMsg struct { Source string }                   // NEVER USED
+```
+
+Each view manages its own success/loading/refresh patterns with local types instead.
+
+**Change:**
+Delete the three unused types.
+
+**Breaking Change:** No
+**Prerequisites:** None
+**Estimated Effort:** trivial
+
+---
+
+### CQ-007: Dead Error Message Type Aliases (3 of 5)
 
 **Category:** dead_code
 **Severity:** minor
 
 **Affected Files:**
-- `internal/cli/config.go` (lines 207-214)
+- `internal/tui/views/backuplist.go` (line 31)
+- `internal/tui/views/restore.go` (lines 72, 79)
 
-**Fix:** Remove `getFieldValue` function and unused `reflect` import.
-
-**Estimated Effort:** trivial
-
----
-
-### CQ-004: Magic Numbers for Restore Phases
-
-**Category:** code_smells
-**Severity:** major
-
-**Affected Files:**
-- `internal/tui/views/restore.go` (entire file, ~25 occurrences)
-
-**Fix:** Replace raw integers with named constants:
+**Current State:**
+Three type aliases that resolve to `ErrorMsg` are defined but never appear in any switch case or type assertion:
 
 ```go
-type restorePhase int
-
-const (
-    phaseBackupList  restorePhase = iota
-    phasePassword
-    phaseFileSelect
-    phaseRestoring
-    phaseDiffPreview
-    phaseResults
-)
+type backupDeleteErrorMsg = ErrorMsg // backuplist.go:31 — NEVER USED IN SWITCH
+type diffErrorMsg = ErrorMsg         // restore.go:72 — NEVER USED IN SWITCH
+type restoreErrorMsg = ErrorMsg      // restore.go:79 — NEVER USED IN SWITCH
 ```
 
-**Estimated Effort:** small (trivial concept, but ~25 replacements)
+Two other aliases (`BackupErrorMsg`, `passwordInvalidMsg`) ARE used in type switches and provide semantic clarity — keep those.
 
----
+**Change:**
+Remove only the 3 dead aliases. Keep `BackupErrorMsg` and `passwordInvalidMsg` which are used in switch statements for semantic routing.
 
-### CQ-014: Variable Shadowing of `styles` Package
-
-**Category:** naming
-**Severity:** minor
-
-**Affected Files:**
-- `internal/tui/views/settings.go` (line 765)
-- `internal/tui/views/setup.go` (line 343)
-
-**Fix:** Rename local `styles` variable to `st` (which some views already use).
-
+**Breaking Change:** No
+**Prerequisites:** None
 **Estimated Effort:** trivial
 
 ---
 
-### CQ-011: HelpProvider Interface Cleanup
+### CQ-010: Magic Number for Password Attempts
 
 **Category:** code_smells
 **Severity:** minor
 
 **Affected Files:**
-- `internal/tui/view.go` (lines 23-43)
+- `internal/tui/views/restore.go` (line 438)
 
-**Fix:** Replace unnecessary `interface{}()` conversion with direct switch:
-
+**Current State:**
+Magic `3` appears twice — in the condition and the error message format string:
 ```go
-func (m Model) currentViewHelp() []views.HelpEntry {
-    switch m.state {
-    case DashboardView:
-        return m.dashboard.HelpBindings()
-    case BackupListView:
-        return m.backupList.HelpBindings()
+if m.passwordAttempts >= 3 {
     // ...
-    }
-    return nil
-}
+    m.restoreError = fmt.Sprintf("Invalid password (attempt %d/3): %v", ...)
 ```
 
+**Change:**
+```go
+const maxPasswordAttempts = 3
+
+if m.passwordAttempts >= maxPasswordAttempts {
+    // ...
+    m.restoreError = fmt.Sprintf("Invalid password (attempt %d/%d): %v", m.passwordAttempts, maxPasswordAttempts, ...)
+```
+
+**Breaking Change:** No
+**Prerequisites:** None
 **Estimated Effort:** trivial
 
 ---
 
-### CQ-019: `LoadOrDefault()` Uses `os.Getenv("HOME")`
+### CQ-011: Manual String Trimming Instead of stdlib
 
 **Category:** code_smells
 **Severity:** minor
 
 **Affected Files:**
-- `internal/config/config.go` (line 163)
-
-**Fix:** Replace `os.Getenv("HOME")` with `os.UserHomeDir()` for consistency with `GetConfigDir()` and proper error handling.
-
-**Estimated Effort:** trivial
-
----
-
-### CQ-017: Replace `filepath.Walk` with `filepath.WalkDir`
-
-**Category:** performance
-**Severity:** suggestion
-
-**Affected Files:**
-- `internal/pathutil/scanner.go` (lines 67, 129)
-
-**Fix:** Replace `filepath.Walk` with `filepath.WalkDir` (Go 1.16+). Avoids redundant `os.Lstat` calls on every file.
-
-**Estimated Effort:** trivial
-
----
-
-### CQ-006: Password Input Factory
-
-**Category:** duplication
-**Severity:** minor
-
-**Affected Files:**
-- `internal/tui/views/backuplist.go` (lines 62-68)
-- `internal/tui/views/restore.go` (lines 100-106)
-
-**Fix:** Create `NewPasswordInput(placeholder string) textinput.Model` in `components/`.
-
-**Estimated Effort:** trivial
-
----
-
-### CQ-007: PathCompleter Styling
-
-**Category:** duplication
-**Severity:** minor
-
-**Affected Files:**
-- `internal/tui/views/settings.go` (lines 83-85)
-- `internal/tui/views/setup.go` (lines 70-72)
-
-**Fix:** Move cursor/prompt styling into `NewPathCompleter()` constructor.
-
-**Estimated Effort:** trivial
-
----
-
-## Phase 2 — Small Refactors (low effort, solid value)
-
-### CQ-012: Styles Re-created on Every Render
-
-**Category:** performance
-**Severity:** major (performance hot path)
-
-**Affected Files:**
-- `internal/tui/styles/styles.go` (`DefaultStyles()`)
-- Every `View()` method
+- `internal/cli/backup.go` (lines 115-118)
 
 **Current State:**
-`DefaultStyles()` creates 40+ `lipgloss.NewStyle()` objects on every call. BubbleTea re-renders on every keystroke, creating significant allocation pressure.
-
-**Fix:** Cache as package-level var (lipgloss styles are immutable after creation):
-
 ```go
-var defaultStyles = Styles{
-    // ... all style definitions
-}
-
-func DefaultStyles() Styles {
-    return defaultStyles
+password := string(data)
+if len(password) > 0 && password[len(password)-1] == '\n' {
+    password = password[:len(password)-1]
 }
 ```
 
-**Estimated Effort:** small
+**Change:**
+```go
+password := strings.TrimSuffix(string(data), "\n")
+```
+
+> **Note:** Use `strings.TrimSuffix` (removes exactly one trailing `\n`), NOT `strings.TrimRight` (would strip ALL trailing newlines, changing behavior for edge cases).
+
+**Breaking Change:** No
+**Prerequisites:** None
+**Estimated Effort:** trivial
 
 ---
 
-### CQ-002: Duplicated Backup List Refresh Logic
+## Phase 2: Structural Improvements (2-3 hours)
 
-**Category:** duplication
+Medium-effort items that improve code organization.
+
+### CQ-004: Type Assertion Boilerplate in Update Loop (11 repetitions)
+
+**Category:** code_smells
 **Severity:** major
 
 **Affected Files:**
-- `internal/tui/views/backuplist.go` (lines 82-104)
-- `internal/tui/views/restore.go` (lines 138-160)
+- `internal/tui/update.go` (lines 31-59, 111-116, 249-285)
 
 **Current State:**
-100% copy-paste of 23 lines. Both scan backup directory, reverse sort, stat files, build item list.
-
-**Fix:** Extract `LoadBackupItems(backupDir string) []list.Item` in `internal/tui/views/helpers.go`. Also deduplicate the `backupItem` type (currently defined in both files).
-
-**Estimated Effort:** small
-
----
-
-### CQ-003: Duplicated Tab/ShiftTab/Number-Key Navigation
-
-**Category:** duplication
-**Severity:** major
-
-**Affected Files:**
-- `internal/tui/update.go` (lines 136-203)
-
-**Current State:**
-Same 4-way refresh chain duplicated 3x (Tab, ShiftTab, number keys = ~60 lines of duplication).
-
-**Fix:** Extract `refreshCmdForState()` and `switchToView()` helper:
+The same type-assertion-after-Update pattern is repeated **11 times** (5 in `propagateWindowSize()` + 6 in `Update()` including the setup model):
 
 ```go
-func (m *Model) refreshCmdForState(state ViewState) tea.Cmd {
-    switch state {
-    case DashboardView:
-        return m.dashboard.Refresh()
-    case BackupListView:
-        return m.backupList.Refresh()
-    case RestoreView:
-        return m.restore.Refresh()
-    case LogsView:
-        return m.logs.LoadHistory()
-    default:
-        return nil
+// This exact pattern appears 11 times:
+tm, cmd = m.dashboard.Update(viewMsg)
+if d, ok := tm.(views.DashboardModel); ok {
+    m.dashboard = d
+}
+cmds = append(cmds, cmd)
+```
+
+**Change:**
+With Go 1.25's generics, create a helper:
+
+```go
+func updateView[T tea.Model](view T, msg tea.Msg) (T, tea.Cmd) {
+    model, cmd := view.Update(msg)
+    if v, ok := model.(T); ok {
+        return v, cmd
+    }
+    return view, cmd
+}
+
+// Usage (reduces each 5-line block to 2 lines):
+m.dashboard, cmd = updateView(m.dashboard, viewMsg)
+cmds = append(cmds, cmd)
+```
+
+This reduces ~55 lines to ~22 lines — a 60% reduction in boilerplate.
+
+**Breaking Change:** No
+**Prerequisites:** Go 1.18+ (already on 1.25)
+**Estimated Effort:** small
+
+---
+
+### CQ-003: Restore View Too Large (721 lines)
+
+**Category:** large_files
+**Severity:** major
+
+**Affected Files:**
+- `internal/tui/views/restore.go` (721 lines)
+
+**Current State:**
+The restore view manages a 6-phase workflow (backup selection -> password -> file selection -> restoring -> diff preview -> results) in a single file. The `View()` method uses 6 sequential if-blocks instead of a switch statement.
+
+**Change:**
+Extract `View()` rendering into phase-specific render methods and convert to switch:
+
+```go
+// Current: 6 sequential if-blocks
+func (m RestoreModel) View() string {
+    if m.phase == phaseBackupList { /* ... */ return s.String() }
+    if m.phase == phasePassword { /* ... */ return s.String() }
+    // ... 4 more
+}
+
+// Proposed: switch + extracted render methods
+func (m RestoreModel) View() string {
+    switch m.phase {
+    case phaseBackupList:  return m.renderBackupList()
+    case phasePassword:    return m.renderPassword()
+    case phaseFileSelect:  return m.renderFileSelect()
+    case phaseRestoring:   return m.renderRestoring()
+    case phaseDiffPreview: return m.renderDiffPreview()
+    case phaseResults:     return m.renderResults()
     }
 }
 ```
 
+**Breaking Change:** No
+**Prerequisites:** None
 **Estimated Effort:** small
 
 ---
 
-### CQ-013: History Store Created Multiple Times
-
-**Category:** code_smells
-**Severity:** minor
-
-**Affected Files:**
-- `internal/cli/backup.go` (2 instantiations)
-- `internal/cli/restore.go` (3 instantiations)
-
-**Fix:** Create `history.NewStore()` once at function start, reuse throughout.
-
-**Estimated Effort:** small
-
----
-
-### CQ-005: List Initialization Factory
-
-**Category:** duplication
-**Severity:** minor
-
-**Affected Files:**
-- `internal/tui/views/settings.go` (3 blocks), `backuplist.go`, `restore.go`, `logs.go`
-
-**Fix:** Create a simple `NewMinimalList()` with common defaults (no title, no help, no filtering). Skip functional options pattern — it's overkill for this. Callers set any additional options directly.
-
-```go
-func NewMinimalList() list.Model {
-    l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
-    l.SetShowTitle(false)
-    l.SetShowHelp(false)
-    l.SetFilteringEnabled(false)
-    return l
-}
-```
-
-**Estimated Effort:** small
-
----
-
-### CQ-009: Discarded Commands in `propagateWindowSize`
-
-**Category:** code_smells
-**Severity:** minor
-
-**Affected Files:**
-- `internal/tui/update.go` (lines 41-67)
-
-**Fix:** Add a comment documenting intent rather than refactoring the function. The current pattern is standard BubbleTea — window resize never produces async work in these views. Over-engineering a fix for a hypothetical future issue adds noise.
-
-```go
-// Commands intentionally discarded — window resize produces no async work in our views.
-tm, _ = m.dashboard.Update(viewMsg)
-```
-
-**Estimated Effort:** trivial
-
----
-
-## Phase 3 — Medium Refactors (meaningful effort, high value)
-
-### CQ-001: Settings View File/Folder Handler Deduplication
-
-**Category:** large_files / duplication
-**Severity:** major
-
-**Affected Files:**
-- `internal/tui/views/settings.go` (866 lines)
-
-**Current State:**
-`handleBrowsingFilesInput()` and `handleBrowsingFoldersInput()` are ~95% identical (~80 lines each). `refreshFilesList()` and `refreshFoldersList()` are ~98% identical (~30 lines each). Total: ~160 lines of near-duplicate code.
-
-**Fix:** Extract generic handler with `pathListType` parameter:
-
-```go
-type pathListType int
-
-const (
-    pathListFiles   pathListType = iota
-    pathListFolders
-)
-
-func (m SettingsModel) handleBrowsingPathsInput(msg tea.KeyMsg, listType pathListType) (tea.Model, tea.Cmd) {
-    paths := m.pathsForType(listType)
-    disabledPaths := m.disabledPathsForType(listType)
-    // ... shared logic
-}
-
-func (m *SettingsModel) refreshPathList(listType pathListType) {
-    // ... shared logic
-}
-```
-
-**Estimated Effort:** medium
-
----
-
-### CQ-010: Restore Update() Complexity
+### CQ-008: Deep Nesting in Path Toggle Logic
 
 **Category:** complexity
 **Severity:** minor
 
 **Affected Files:**
-- `internal/tui/views/restore.go` (lines 250-464, ~215 lines)
+- `internal/tui/views/settings.go` (lines 374-393)
 
 **Current State:**
-Single method handles all 6 phases with nested if-else + switch. ~215 lines, ~8 levels of branching.
+The space-key handler for toggling disabled paths has 4 nesting levels (switch -> if -> for -> if).
 
-**Fix:** Extract phase-specific handlers (follows settings.go pattern):
+**Change:**
+Extract into a dedicated method:
 
 ```go
-func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.KeyMsg:
-        switch m.phase {
-        case phaseBackupList:
-            return m.handleBackupListInput(msg)
-        case phasePassword:
-            return m.handlePasswordInput(msg)
-        // ...
+func (m *SettingsModel) togglePathDisabled(lt pathListType, path string) {
+    disabled := m.disabledPathsForType(lt)
+    for i, d := range disabled {
+        if d == path {
+            m.setDisabledPathsForType(lt, append(disabled[:i], disabled[i+1:]...))
+            return
         }
     }
+    m.setDisabledPathsForType(lt, append(disabled, path))
 }
 ```
 
-**Prerequisites:** CQ-004 (named phase constants)
+**Breaking Change:** No
+**Prerequisites:** None
+**Estimated Effort:** trivial
+
+---
+
+### CQ-014: CLI History Logging Pattern Repeated
+
+**Category:** duplication
+**Severity:** minor
+
+**Affected Files:**
+- `internal/cli/backup.go` (lines 74-79, 96-100)
+- `internal/cli/restore.go` (lines 91-97, 115-121, 128-132)
+
+**Current State:**
+The same "best-effort history logging" pattern appears 5 times:
+
+```go
+if storeErr == nil {
+    store.Append(history.EntryFrom...(result))
+} else {
+    fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)
+}
+```
+
+**Change:**
+Extract helper:
+
+```go
+func logHistory(store *history.Store, storeErr error, entry history.HistoryEntry) {
+    if storeErr != nil {
+        fmt.Fprintf(os.Stderr, "Warning: history unavailable: %v\n", storeErr)
+        return
+    }
+    if err := store.Append(entry); err != nil {
+        fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+    }
+}
+```
+
+**Breaking Change:** No
+**Estimated Effort:** trivial
+
+---
+
+## Phase 3: Larger Refactors (5-7 hours)
+
+Higher-effort items. Do after Phases 1-2 are complete.
+
+### CQ-002: Settings View Too Large (857 lines)
+
+**Category:** large_files
+**Severity:** major
+
+**Affected Files:**
+- `internal/tui/views/settings.go` (857 lines)
+
+**Current State:**
+The settings view handles 6 distinct states (list navigation, field editing, file/folder browsing, sub-item editing, file picker) with all rendering logic, input handling, and path management in one file. The `Update()` method is 92 lines and the `View()` method is 60 lines.
+
+**Change:**
+Split into focused files following existing project conventions:
+
+| New File | Contents | ~Lines |
+|----------|----------|--------|
+| `settings.go` | Model struct, `NewSettings()`, `Update()`, `Init()` | ~200 |
+| `settings_editing.go` | `handleEditingFieldInput()`, `handleEditingSubItemInput()`, `startEditingField()`, `startEditingSubItem()`, `saveFieldValue()` | ~200 |
+| `settings_paths.go` | `handleBrowsingPathsInput()`, path type helpers, `refreshPathList()`, `togglePathDisabled()` | ~200 |
+| `settings_view.go` | `View()`, `HelpBindings()`, `StatusHelpText()`, rendering helpers | ~150 |
+
+**Breaking Change:** No (all types stay in `views` package)
+**Prerequisites:** CQ-008 (togglePathDisabled extraction makes the split cleaner)
 **Estimated Effort:** medium
 
 ---
 
-### CQ-018: Setup handleEnter() Step Handlers
+### CQ-006: Dead Components — Wire into Restore or Delete
 
-**Category:** complexity
-**Severity:** suggestion
+**Category:** dead_code + structure
+**Severity:** major
 
 **Affected Files:**
-- `internal/tui/views/setup.go` (lines 209-331, 122 lines)
+- `internal/tui/views/restore.go`
+- `internal/tui/views/restore_fileselect.go` (147 lines) — `FileSelector` component
+- `internal/tui/views/restore_diff.go` (150 lines) — `DiffViewer` component
 
-**Fix:** Extract only the larger cases (>15 lines) into separate methods. Cases that are 5-8 lines (StepWelcome, StepConfirm) should stay inline. Expect 3-4 extractions, not all 8.
+**Current State:**
+Both components are fully implemented but **never referenced** by any file outside their own. The restore view duplicates their logic inline:
 
+| Inline in restore.go | Exists in component |
+|---|---|
+| `selectedFiles map[string]bool` | `FileSelector.selected` |
+| `updateFileListSelection()` | `FileSelector.updateFileListSelection()` |
+| `countSelectedFiles()` | `FileSelector.SelectedCount()` |
+| `getSelectedFilePaths()` | `FileSelector.SelectedFiles()` |
+| `viewport` + `currentDiff` + `diffFile` | `DiffViewer` struct |
+
+These appear to be extraction attempts that were never wired in, leaving ~300 lines of dead code.
+
+**Change (recommended):**
+Wire components into `RestoreModel` via composition:
+
+```go
+type RestoreModel struct {
+    ctx            *ProgramContext
+    backupList     list.Model
+    phase          restorePhase
+    selectedBackup string
+    password       string
+    passwordInput  textinput.Model
+    fileSelector   FileSelector   // Replace inline file selection
+    diffViewer     DiffViewer     // Replace inline diff viewing
+    // ...
+}
+```
+
+This reduces `restore.go` by ~100-150 lines and eliminates the dead code files.
+
+**Fallback:** If wiring proves impractical, delete both files entirely.
+
+**Breaking Change:** No
+**Prerequisites:** CQ-003 (render method extraction makes wiring easier)
+**Estimated Effort:** medium
+
+---
+
+## Suggestions (do when convenient)
+
+### CQ-013: Setup View has Duplicated Rendering Pattern
+
+**Category:** duplication
+
+**Affected Files:**
+- `internal/tui/views/setup.go` (lines 418-473)
+
+**Current State:**
+`StepPresetFiles` and `StepPresetFolders` View() code is nearly identical — same cursor/checkbox rendering, same list iteration, just different data source.
+
+**Change:**
+Extract shared preset rendering:
+
+```go
+func renderPresetList(presets []pathutil.DotfilePreset, cursor int, st styles.Styles) string {
+    var s strings.Builder
+    for i, p := range presets {
+        // shared rendering logic
+    }
+    return s.String()
+}
+```
+
+**Breaking Change:** No
+**Estimated Effort:** trivial
+
+---
+
+### CQ-012: `DefaultStyles()` Called in Every View Render
+
+**Category:** code_smells
+
+**Affected Files:**
+- 6 View() methods + 3 framework/helper files (9 total call sites)
+
+**Current State:**
+`styles.DefaultStyles()` is called on every `View()` invocation (every render frame). Currently it returns a package-level `var defaultStyles` so it's **cheap** — this is not a performance problem today.
+
+**Change (only if theme switching is planned):**
+Store styles reference in `ProgramContext`:
+
+```go
+type ProgramContext struct {
+    Config *config.Config
+    Store  *history.Store
+    Styles styles.Styles  // Add styles to shared context
+    Width  int
+    Height int
+}
+```
+
+> **Note:** This is a YAGNI candidate. Only worth doing if theme switching is actually on the roadmap. Current implementation has zero measurable performance impact.
+
+**Breaking Change:** No
+**Prerequisites:** None
 **Estimated Effort:** small
 
 ---
 
 ## Discarded
 
-### ~~CQ-016: ViewModel Interface~~ — REMOVED
+### ~~CQ-009: Complex Conditional in Diff Algorithm~~ — DISCARDED
 
-**Reason:** Adding abstraction to save a few switch cases is a net negative. BubbleTea views return concrete types (`tea.Model`), requiring type assertions after `Update()` regardless. The current switch statements are clear, explicit, debuggable, and follow standard BubbleTea patterns. The main model's dispatch logic is already small (~20 lines). An interface would add indirection without meaningful simplification.
+**Reason:** Over-engineering. The 5-condition check (`i < len(a) && j < len(b) && lcsIdx < len(lcs) && a[i] == lcs[lcsIdx] && b[j] == lcs[lcsIdx]`) is a standard LCS algorithm bounds-check pattern. Every diff implementation has this. Extracting it to a named function:
+- Adds a function call in a potentially hot loop
+- Obscures the algorithm for developers familiar with LCS/diff implementations
+- The function name (`isLCSMatch`) doesn't add information the surrounding loop context doesn't already provide
 
 ---
 
@@ -422,46 +493,34 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| Files > 500 lines (non-test) | 3 (settings: 866, restore: 610, setup: 524) | Needs attention |
-| Functions > 50 lines | 5 (Update methods, handleEnter, View) | Acceptable with extraction |
-| Duplicated blocks | 7 significant instances | Needs attention |
-| Dead code | 1 function + 1 import | Minor |
-| Magic numbers | 1 file (restore phases) | Needs attention |
-| `_ =` error discards (non-test) | 12 | Mostly acceptable |
-| Total packages | 12 | Good |
-| Test coverage | Good (co-located tests) | Good |
+| Files > 500 lines (source) | 3 (settings 857, restore 721, setup 578) | Needs attention |
+| Files > 500 lines (tests) | 5 (acceptable for test files) | Good |
+| Functions > 50 lines | 7 | Needs attention |
+| `any` types | 0 | Good |
+| Duplicated formatting functions | 4 | Needs attention |
+| Dead message types | 3 | Needs attention |
+| Dead component files | 2 (~300 lines) | Needs attention |
+| Dead error type aliases | 3 | Needs attention |
+| `DefaultStyles()` calls per frame | 9 | Acceptable (cheap) |
+| Type assertion repetitions | 11 | Needs attention |
 
 ## Summary
 
 | Severity | Count |
 |----------|-------|
-| Critical (bug) | 1 |
-| Major | 5 |
-| Minor | 8 |
-| Suggestion | 3 |
+| Critical | 0 |
+| Major | 6 |
+| Minor | 4 |
+| Suggestion | 2 |
 | Discarded | 1 |
 
-**Remaining: 17 items** (down from 19 — 1 discarded, 1 adjusted to comment-only)
+**Total Actionable Issues:** 12 (down from 15)
 
-## Implementation Order
-
-| # | ID | Effort | Phase | Description |
-|---|-----|--------|-------|-------------|
-| 1 | CQ-015 | trivial | 1 | **[BUG]** Fix GitRemote validation |
-| 2 | CQ-008 | trivial | 1 | Remove dead code |
-| 3 | CQ-004 | small | 1 | Named restore phase constants |
-| 4 | CQ-014 | trivial | 1 | Fix styles variable shadowing |
-| 5 | CQ-011 | trivial | 1 | HelpProvider cleanup |
-| 6 | CQ-019 | trivial | 1 | os.UserHomeDir() consistency |
-| 7 | CQ-017 | trivial | 1 | filepath.WalkDir upgrade |
-| 8 | CQ-006 | trivial | 1 | Password input factory |
-| 9 | CQ-007 | trivial | 1 | PathCompleter default styling |
-| 10 | CQ-012 | small | 2 | Styles singleton (perf) |
-| 11 | CQ-002 | small | 2 | Shared backup list loading |
-| 12 | CQ-003 | small | 2 | switchToView() helper |
-| 13 | CQ-013 | small | 2 | History store single init |
-| 14 | CQ-005 | small | 2 | NewMinimalList() factory |
-| 15 | CQ-009 | trivial | 2 | Document propagateWindowSize intent |
-| 16 | CQ-001 | medium | 3 | Settings file/folder dedup |
-| 17 | CQ-010 | medium | 3 | Restore phase handler extraction |
-| 18 | CQ-018 | small | 3 | Setup handleEnter() partial extraction |
+| Category | Count |
+|----------|-------|
+| Dead Code | 3 (CQ-005, CQ-006, CQ-007) |
+| Duplication | 3 (CQ-001, CQ-013, CQ-014) |
+| Large Files | 2 (CQ-002, CQ-003) |
+| Code Smells | 3 (CQ-004, CQ-010, CQ-011) |
+| Complexity | 1 (CQ-008) |
+| Suggestion | 1 (CQ-012) |

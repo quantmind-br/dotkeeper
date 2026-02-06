@@ -1,11 +1,9 @@
 {
-  "active_plan": "/home/diogo/dev/dotkeeper/.sisyphus/plans/tui-bubbletea-improvements.md",
-  "started_at": "2026-02-06T13:12:52.493Z",
+  "active_plan": "/home/diogo/dev/dotkeeper/.sisyphus/plans/code-quality-refactor.md",
+  "started_at": "2026-02-06T22:11:42.746Z",
   "session_ids": [
-    "ses_3ccfd9c7cffeviWLWU0hslAx6o",
-    "ses_3ccd0978fffed7qr6k5WJr27wI",
-    "ses_3cccf88aeffeELoP8B5q5L981V"
+    "ses_3cb23d780ffeHJ76Hbkfdq2NG3"
   ],
-  "plan_name": "tui-bubbletea-improvements",
+  "plan_name": "code-quality-refactor",
   "agent": "atlas"
 }
