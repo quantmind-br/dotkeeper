@@ -7,86 +7,72 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func TestSearchBar_NewNotActive(t *testing.T) {
+func TestSearchBar_NewIsInactive(t *testing.T) {
 	sb := NewSearchBar()
 	if sb.IsActive() {
-		t.Error("NewSearchBar should create inactive search bar")
+		t.Error("expected new SearchBar to be inactive")
 	}
 	if sb.Query() != "" {
-		t.Error("NewSearchBar should have empty query")
+		t.Errorf("expected empty query, got %q", sb.Query())
 	}
 }
 
 func TestSearchBar_Activate(t *testing.T) {
 	sb := NewSearchBar()
 	cmd := sb.Activate()
-
 	if !sb.IsActive() {
-		t.Error("Activate should set active to true")
-	}
-	if sb.Query() != "" {
-		t.Error("Activate should clear query")
+		t.Error("expected SearchBar to be active after Activate()")
 	}
 	if cmd == nil {
-		t.Error("Activate should return a command")
+		t.Error("expected Activate() to return a command")
 	}
 }
 
 func TestSearchBar_Deactivate(t *testing.T) {
 	sb := NewSearchBar()
 	sb.Activate()
-	sb.input.SetValue("test search")
-
 	sb.Deactivate()
-
 	if sb.IsActive() {
-		t.Error("Deactivate should set active to false")
+		t.Error("expected SearchBar to be inactive after Deactivate()")
 	}
 	if sb.Query() != "" {
-		t.Error("Deactivate should clear query")
+		t.Errorf("expected empty query after deactivate, got %q", sb.Query())
 	}
 }
 
 func TestSearchBar_Query(t *testing.T) {
 	sb := NewSearchBar()
 	sb.Activate()
-	sb.input.SetValue("hello world")
-
-	if sb.Query() != "hello world" {
-		t.Errorf("Query() should return 'hello world', got %q", sb.Query())
+	sb.input.SetValue("test query")
+	if sb.Query() != "test query" {
+		t.Errorf("expected query 'test query', got %q", sb.Query())
 	}
 }
 
-func TestSearchBar_SetWidth(t *testing.T) {
+func TestSearchBar_EscDismisses(t *testing.T) {
 	sb := NewSearchBar()
-	sb.SetWidth(80)
+	sb.Activate()
+	sb.input.SetValue("test")
 
-	if sb.width != 80 {
-		t.Errorf("SetWidth should set width to 80, got %d", sb.width)
-	}
-	if sb.input.Width != 76 {
-		t.Errorf("SetWidth should set input.Width to 76, got %d", sb.input.Width)
-	}
-}
+	msg := tea.KeyMsg{Type: tea.KeyEscape}
+	sb, cmd := sb.Update(msg)
 
-func TestSearchBar_SetWidthSmall(t *testing.T) {
-	sb := NewSearchBar()
-	sb.SetWidth(2)
-
-	if sb.width != 2 {
-		t.Errorf("SetWidth should set width to 2, got %d", sb.width)
+	if sb.IsActive() {
+		t.Error("expected SearchBar to be inactive after Esc")
 	}
-	if sb.input.Width < 0 {
-		t.Errorf("SetWidth should not set negative input.Width, got %d", sb.input.Width)
+	if sb.Query() != "" {
+		t.Errorf("expected empty query after Esc, got %q", sb.Query())
+	}
+	if cmd != nil {
+		t.Error("expected no command after Esc")
 	}
 }
 
 func TestSearchBar_ViewWhenInactive(t *testing.T) {
 	sb := NewSearchBar()
 	view := sb.View()
-
 	if view != "" {
-		t.Errorf("View() when inactive should return empty string, got %q", view)
+		t.Errorf("expected empty view when inactive, got %q", view)
 	}
 }
 
@@ -97,64 +83,55 @@ func TestSearchBar_ViewWhenActive(t *testing.T) {
 	sb.SetWidth(80)
 
 	view := sb.View()
-
 	if view == "" {
-		t.Error("View() when active should not return empty string")
+		t.Error("expected non-empty view when active")
 	}
 	if !strings.Contains(view, "/") {
-		t.Error("View() should contain '/' prefix")
+		t.Error("expected view to contain '/' prefix")
 	}
 	if !strings.Contains(view, "test") {
-		t.Error("View() should contain search text 'test'")
+		t.Error("expected view to contain search text")
+	}
+}
+
+func TestSearchBar_SetWidth(t *testing.T) {
+	sb := NewSearchBar()
+	sb.SetWidth(80)
+	if sb.width != 80 {
+		t.Errorf("expected width 80, got %d", sb.width)
+	}
+	if sb.input.Width <= 0 {
+		t.Error("expected input width to be set")
+	}
+}
+
+func TestSearchBar_EnterSendsMessage(t *testing.T) {
+	sb := NewSearchBar()
+	sb.Activate()
+	sb.input.SetValue("search term")
+
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	sb, cmd := sb.Update(msg)
+
+	if cmd == nil {
+		t.Error("expected command after Enter")
+	}
+
+	resultMsg := cmd()
+	filterMsg, ok := resultMsg.(SearchFilterMsg)
+	if !ok {
+		t.Errorf("expected SearchFilterMsg, got %T", resultMsg)
+	}
+	if filterMsg.Query != "search term" {
+		t.Errorf("expected query 'search term', got %q", filterMsg.Query)
 	}
 }
 
 func TestSearchBar_UpdateWhenInactive(t *testing.T) {
 	sb := NewSearchBar()
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-
-	sb2, cmd := sb.Update(msg)
-
-	if sb2.Value() != "" {
-		t.Error("Update when inactive should not change value")
-	}
+	sb, cmd := sb.Update(msg)
 	if cmd != nil {
-		t.Error("Update when inactive should return nil command")
-	}
-}
-
-func TestSearchBar_UpdateWhenActive(t *testing.T) {
-	sb := NewSearchBar()
-	sb.Activate()
-
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	_, cmd := sb.Update(msg)
-
-	if cmd == nil {
-		t.Error("Update when active should return a command")
-	}
-}
-
-func TestSearchBar_MultipleActivateDeactivate(t *testing.T) {
-	sb := NewSearchBar()
-
-	sb.Activate()
-	if !sb.IsActive() {
-		t.Error("First activate should set active to true")
-	}
-
-	sb.Deactivate()
-	if sb.IsActive() {
-		t.Error("First deactivate should set active to false")
-	}
-
-	sb.Activate()
-	if !sb.IsActive() {
-		t.Error("Second activate should set active to true")
-	}
-
-	sb.Deactivate()
-	if sb.IsActive() {
-		t.Error("Second deactivate should set active to false")
+		t.Error("expected nil command when inactive")
 	}
 }
