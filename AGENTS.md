@@ -1,8 +1,9 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-02-05
-**Commit:** 064eb68
-**Branch:** master
+**Generated:** 2026-02-06
+**Commit:** a0cc9df
+**Branch:** feat/settings-inline-actions
+**Go:** 1.25.6
 
 ## OVERVIEW
 
@@ -12,18 +13,22 @@ dotkeeper — Encrypted dotfiles backup manager with TUI and CLI interfaces. Go 
 
 ```
 dotkeeper/
-├── cmd/dotkeeper/main.go    # Entry: TUI (no args) or CLI (backup|restore|list|config)
+├── cmd/dotkeeper/main.go    # Entry point: dual TUI/CLI router
 ├── internal/
-│   ├── backup/              # Collect → Archive → Encrypt → Save
-│   ├── restore/             # Decrypt → Extract → Conflict resolution → Atomic write
-│   ├── crypto/              # AES-256-GCM + Argon2id KDF
-│   ├── config/              # YAML config at ~/.config/dotkeeper/config.yaml
-│   ├── cli/                 # CLI command handlers
-│   ├── tui/                 # BubbleTea TUI (see TUI PATTERNS below)
-│   ├── git/                 # go-git wrapper (no shell-out)
-│   ├── keyring/             # System keyring for headless password
-│   └── notify/              # Desktop notifications
-├── e2e/                     # End-to-end tests
+│   ├── backup/              # Collect → Archive → Encrypt → Save (6 files)
+│   ├── restore/             # Decrypt → Extract → Conflict → Atomic write (7 files)
+│   ├── crypto/              # AES-256-GCM + Argon2id KDF (6 files)
+│   ├── config/              # YAML config with XDG paths (2 files)
+│   ├── cli/                 # CLI command handlers (5 files, ~2200 lines)
+│   ├── tui/                 # BubbleTea framework + views (~4300 lines total)
+│   │   ├── views/           # Dashboard, BackupList, Restore, Settings, Logs
+│   │   └── components/      # Reusable UI components
+│   ├── git/                 # go-git wrapper (6 files)
+│   ├── keyring/             # System keyring for headless password (2 files)
+│   ├── history/             # JSONL operation history with file locking (2 files)
+│   ├── pathutil/            # Path utilities, scanner, presets (8 files)
+│   └── notify/              # Desktop notifications (2 files)
+├── e2e/                     # End-to-end integration tests (3 files)
 └── contrib/systemd/         # Service + timer for scheduled backups
 ```
 
@@ -31,56 +36,66 @@ dotkeeper/
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Add CLI command | `internal/cli/` + `cmd/dotkeeper/main.go` | Add handler, add case to switch |
-| Add TUI view | `internal/tui/views/` + `internal/tui/model.go` | Add ViewState, add sub-model, wire Update/View |
-| Change encryption | `internal/crypto/` | NEVER change defaults (security) |
+| Add CLI command | `internal/cli/<command>.go` + `cmd/dotkeeper/main.go` | Add handler, add case to switch |
+| Add TUI view | `internal/tui/views/<view>.go` + wire in model/update/view | Add ViewState, eager-init in NewModel() |
+| Change encryption | `internal/crypto/` | NEVER change defaults (breaks compatibility) |
 | Modify backup flow | `internal/backup/backup.go` | collect → archive → encrypt → write |
 | Modify restore flow | `internal/restore/restore.go` | decrypt → extract → conflict → atomic write |
 | Add config field | `internal/config/config.go` | Add to struct + yaml tag + Validate() |
-| Password sources | `internal/cli/backup.go:getPassword()` | Priority: file → env → keyring |
+| Password sources | `internal/cli/backup.go:getPassword()` | Priority: file → env → keyring → prompt |
 | Git operations | `internal/git/` | go-git library only, no shell-out |
+| Operation history | `internal/history/` | JSONL format with advisory file locking |
+| Path scanning | `internal/pathutil/scanner.go` | Glob + preset expansion |
 
-## TUI PATTERNS
+## TUI ARCHITECTURE
 
-BubbleTea architecture with eager-initialized sub-models:
+BubbleTea with **eager-initialized** sub-models (all views in memory for fast switching):
 
 ```go
-// Main model holds ALL views in memory (fast switching)
 type Model struct {
     state     ViewState              // DashboardView, BackupListView, etc.
-    dashboard views.DashboardModel   // All views initialized in NewModel()
-    // ...
+    dashboard views.DashboardModel   // Created in NewModel(), not on-demand
+    // ... all views always in memory
 }
 
-// Each view implements tea.Model
-type XxxModel struct {
-    config *config.Config
-    width, height int
-}
-func (m XxxModel) Init() tea.Cmd { ... }
-func (m XxxModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { ... }
-func (m XxxModel) View() string { ... }
+// After Update(), REQUIRED type assertion:
+model, cmd = m.dashboard.Update(msg)
+m.dashboard = model.(views.DashboardModel)
 ```
 
 **Conventions:**
 - Private messages (`statusMsg`) for internal async
 - Public messages (`BackupSuccessMsg`) for cross-view events
 - Async via closures: `return func() tea.Msg { /* blocking I/O */ }`
-- Type assertions after Update: `m.dashboard = model.(views.DashboardModel)`
 - Tab cycles views: `m.state = (m.state + 1) % viewCount`
-- Bubbles components embedded directly (list, textinput, filepicker)
+
+## CRYPTO SPECIFICATION
+
+```
+Ciphertext format: [version(1)][salt(16)][nonce(12)][ciphertext...][tag(16)]
+```
+
+- **Encryption**: AES-256-GCM (authenticated)
+- **KDF**: Argon2id (3 iterations, 64MB, 4 threads)
+- **Salt**: 16 bytes random per backup
+- **Nonce**: 12 bytes random per encryption
+- **KeySize**: 32 bytes
+- **Metadata**: Stored in `.meta.json` (unencrypted - contains salt/KDF params only)
+
+**NEVER CHANGE CONSTANTS** - Would break backward compatibility with existing backups.
 
 ## CONVENTIONS
 
 - **Error wrapping**: Always `fmt.Errorf("context: %w", err)`
-- **Atomic writes**: temp file + rename (see `restoreFileAtomic`)
-- **Config location**: XDG_CONFIG_HOME/dotkeeper/config.yaml
+- **Atomic writes**: temp file + rename pattern
+- **Config location**: `$XDG_CONFIG_HOME/dotkeeper/config.yaml`
 - **Backup naming**: `backup-YYYY-MM-DD-HHMMSS.tar.gz.enc` + `.meta.json`
+- **Permissions**: Backup files always `0600`
 - **Tests co-located**: `foo.go` → `foo_test.go` (same package)
+- **Symlinks**: Followed and content copied (not preserved as links)
 - **No globals in TUI**: Pass config via constructor
 - **Git operations**: Use go-git library, never shell out
-- **Permissions**: Backup files always `0600`
-- **Symlinks**: Followed and content copied (not preserved as links)
+- **File locking**: `syscall.Flock` for history.jsonl concurrent access
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -90,9 +105,12 @@ func (m XxxModel) View() string { ... }
 - Shell out to git (use go-git library)
 - Force push
 - Load entire backup files in memory (use streaming where possible)
-- Add `@ts-ignore` equivalent (`//nolint` without justification)
+- Use `//nolint` without justification
 - Change Argon2id parameters (breaks backward compatibility)
 - Roll your own crypto
+- Write to history without file locking
+- Block in TUI `Update()` - always use `tea.Cmd`
+- Access globals in TUI - pass via Model constructor
 
 **DON'T:**
 - Add incremental backups (full backup each time by design)
@@ -100,37 +118,8 @@ func (m XxxModel) View() string { ... }
 - Add Windows support (Linux/systemd only)
 - Add multiple config profiles (single config by design)
 - Add file auto-discovery (explicit paths only)
-- Block in TUI `Update()` - always use `tea.Cmd`
-- Access globals in TUI - pass config via constructor
-
-## SECURITY
-
-- **Encryption**: AES-256-GCM (authenticated)
-- **KDF**: Argon2id (3 iterations, 64MB, 4 threads)
-- **Salt**: 16 bytes random per backup
-- **Nonce**: 12 bytes random per encryption
-- **Ciphertext format**: `[version(1)][salt(16)][nonce(12)][ciphertext...][tag(16)]`
-- **Metadata**: Stored in `.meta.json` (not encrypted - contains salt/KDF params only)
-- **Keyring**: zalando/go-keyring for headless mode
-
-## COMMANDS
-
-```bash
-# Development
-make build      # → ./bin/dotkeeper
-make test       # -race -coverprofile=coverage.out
-make lint       # golangci-lint required
-make clean
-
-# Usage
-./dotkeeper                        # Launch TUI
-./dotkeeper backup                 # CLI backup (needs password)
-./dotkeeper backup --password-file ~/.pw
-DOTKEEPER_PASSWORD=xxx ./dotkeeper backup
-./dotkeeper restore --backup-id <path>
-./dotkeeper list
-./dotkeeper config
-```
+- Lazy-initialize TUI views (eager init in NewModel())
+- Modify other views' state directly - use messages
 
 ## SYSTEMD DEPLOYMENT
 
@@ -146,11 +135,20 @@ systemctl --user enable --now dotkeeper.timer
 
 Timer runs daily at 2:00 AM with 1-hour randomized delay.
 
+## DEPENDENCIES
+
+Key external packages:
+- `github.com/charmbracelet/bubbletea` - TUI framework
+- `github.com/charmbracelet/bubbles` - TUI components
+- `github.com/go-git/go-git/v5` - Git operations
+- `github.com/zalando/go-keyring` - System keyring access
+- `golang.org/x/crypto` - Argon2id
+
 ## NOTES
 
 - **Password paradox**: Scheduled backups need password → solved via system keyring
-- **Symlinks**: Followed and content copied (not preserved as links)
 - **Large files**: Currently loads in memory; streaming TODO for very large backups
 - **Restore conflicts**: Existing files renamed to `.bak` with diff preview option
 - **Git integration**: Pure go-git, no shell exec for security/reliability
-- **E2E tests**: Full integration tests in `e2e/` directory
+- **E2E tests**: Full integration tests in `e2e/` directory using real crypto
+- **Concurrency**: File locking prevents history corruption when manual + systemd run simultaneously
