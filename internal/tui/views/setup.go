@@ -423,23 +423,7 @@ func (m SetupModel) View() string {
 			s.WriteString("No common dotfiles detected.\n")
 		} else {
 			s.WriteString("Detected dotfiles on your system:\n\n")
-			for i, p := range m.presetFiles {
-				cursor := "  "
-				if i == m.presetCursor {
-					cursor = "> "
-				}
-				checked := "[ ]"
-				if p.Selected {
-					checked = "[x]"
-				}
-
-				label := fmt.Sprintf("%s %s %s (%s)", cursor, checked, p.Path, pathutil.FormatSize(p.Size))
-				if i == m.presetCursor {
-					s.WriteString(st.Selected.Render(label) + "\n")
-				} else {
-					s.WriteString(label + "\n")
-				}
-			}
+			s.WriteString(renderPresetList(m.presetFiles, m.presetCursor, st))
 		}
 		helpText = "Space: toggle | Enter: continue | Esc: back"
 
@@ -451,24 +435,7 @@ func (m SetupModel) View() string {
 			s.WriteString("No common config folders detected.\n")
 		} else {
 			s.WriteString("Detected config folders on your system:\n\n")
-			for i, p := range m.presetFolders {
-				cursor := "  "
-				if i == m.presetCursor {
-					cursor = "> "
-				}
-				checked := "[ ]"
-				if p.Selected {
-					checked = "[x]"
-				}
-
-				fileCount := fmt.Sprintf("%d files", p.FileCount)
-				label := fmt.Sprintf("%s %s %s (%s, %s)", cursor, checked, p.Path, fileCount, pathutil.FormatSize(p.Size))
-				if i == m.presetCursor {
-					s.WriteString(st.Selected.Render(label) + "\n")
-				} else {
-					s.WriteString(label + "\n")
-				}
-			}
+			s.WriteString(renderPresetList(m.presetFolders, m.presetCursor, st))
 		}
 		helpText = "Space: toggle | Enter: continue | Esc: back"
 
@@ -574,5 +541,34 @@ func (m SetupModel) View() string {
 
 	s.WriteString(RenderStatusBar(m.ctx.Width, statusText, errMsg, helpText))
 
+	return s.String()
+}
+
+func renderPresetList(presets []pathutil.DotfilePreset, cursorIdx int, st styles.Styles) string {
+	var s strings.Builder
+	for i, p := range presets {
+		cursor := "  "
+		if i == cursorIdx {
+			cursor = "> "
+		}
+		checked := "[ ]"
+		if p.Selected {
+			checked = "[x]"
+		}
+
+		var label string
+		if p.FileCount > 0 {
+			fileCount := fmt.Sprintf("%d files", p.FileCount)
+			label = fmt.Sprintf("%s %s %s (%s, %s)", cursor, checked, p.Path, fileCount, pathutil.FormatSize(p.Size))
+		} else {
+			label = fmt.Sprintf("%s %s %s (%s)", cursor, checked, p.Path, pathutil.FormatSize(p.Size))
+		}
+
+		if i == cursorIdx {
+			s.WriteString(st.Selected.Render(label) + "\n")
+		} else {
+			s.WriteString(label + "\n")
+		}
+	}
 	return s.String()
 }
