@@ -371,8 +371,17 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.backupList.SetSize(msg.Width, msg.Height)
 		m.fileList.SetSize(msg.Width, msg.Height)
-		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height
+		// Viewport needs to account for its border styling (RoundedBorder adds 1 char on each side)
+		vpBorderW := 2 // left + right border
+		vpBorderH := 2 // top + bottom border
+		m.viewport.Width = msg.Width - vpBorderW
+		m.viewport.Height = msg.Height - vpBorderH
+		if m.viewport.Width < 0 {
+			m.viewport.Width = 0
+		}
+		if m.viewport.Height < 0 {
+			m.viewport.Height = 0
+		}
 
 	case backupsLoadedMsg:
 		m.backupList.SetItems([]list.Item(msg))
@@ -525,9 +534,10 @@ func (m RestoreModel) View() string {
 		s.WriteString(st.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
+		// Use viewport dimensions directly (already account for border in Update())
 		viewportStyle := st.ViewportBorder.Copy().
-			Width(m.width - 4).
-			Height(m.height - 4)
+			Width(m.viewport.Width).
+			Height(m.viewport.Height)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
 		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, ""))
