@@ -17,8 +17,7 @@ import (
 type settingsState int
 
 const (
-	stateReadOnly settingsState = iota
-	stateListNavigating
+	stateListNavigating settingsState = iota
 	stateEditingField
 	stateBrowsingFiles
 	stateBrowsingFolders
@@ -95,7 +94,7 @@ func NewSettings(cfg *config.Config) SettingsModel {
 		config:      cfg,
 		width:       80,
 		height:      24,
-		state:       stateReadOnly,
+		state:       stateListNavigating,
 		mainList:    mainList,
 		filesList:   filesList,
 		foldersList: foldersList,
@@ -135,19 +134,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateBrowsingFolders:
 			return m.handleBrowsingFoldersInput(msg)
 		}
-		return m.handleReadOnlyInput(msg)
-	}
-	return m, nil
-}
-
-// handleReadOnlyInput handles input when not in edit mode
-func (m SettingsModel) handleReadOnlyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "e":
-		m.state = stateListNavigating
 		return m, nil
-	case "ctrl+c":
-		return m, tea.Quit
 	}
 	return m, nil
 }
@@ -156,7 +143,6 @@ func (m SettingsModel) handleReadOnlyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.state = stateReadOnly
 		return m, nil
 
 	case "enter":
@@ -515,18 +501,10 @@ func (m SettingsModel) View() string {
 
 	styles := DefaultStyles()
 
-	if m.state == stateReadOnly {
-		b.WriteString(styles.Title.Render("Settings") + "\n")
-		b.WriteString(styles.Hint.Render("Press 'e' to edit") + "\n")
-	} else {
-		b.WriteString(styles.Title.Render("Settings [EDIT MODE]") + "\n\n")
-	}
+	b.WriteString(styles.Title.Render("Settings") + "\n\n")
 
 	helpText := ""
 	switch m.state {
-	case stateReadOnly:
-		b.WriteString(m.mainList.View())
-		helpText = "e: Edit mode"
 	case stateListNavigating:
 		b.WriteString(m.mainList.View())
 		helpText = "↑/↓: Navigate | Enter: Edit | a: Add | s: Save | Esc: Exit"
@@ -578,12 +556,16 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 		}
 	default:
 		return []HelpEntry{
-			{"e", "Edit mode"},
+			{"↑/↓", "Navigate"},
+			{"Enter", "Edit field"},
+			{"a", "Add item"},
+			{"d", "Delete item"},
+			{"s", "Save config"},
 		}
 	}
 }
 
-// IsEditing returns true when the settings view is in edit mode or editing a field.
+// IsEditing returns true — settings is always in an interactive mode.
 func (m SettingsModel) IsEditing() bool {
-	return m.state != stateReadOnly
+	return true
 }
