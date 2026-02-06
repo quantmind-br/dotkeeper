@@ -138,3 +138,22 @@ func search(s, substr string) bool {
 	}
 	return false
 }
+
+func TestSettingsFilePickerState(t *testing.T) {
+	model := NewSettings(testSettingsConfig())
+	// Navigate to files browsing
+	model.state = stateBrowsingFiles
+	// Press 'b' to open file picker
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	if model.state != stateFilePickerActive {
+		t.Fatalf("expected stateFilePickerActive, got %v", model.state)
+	}
+	if model.filePickerParent != stateBrowsingFiles {
+		t.Fatalf("expected filePickerParent to be stateBrowsingFiles")
+	}
+	// Press Esc to return
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyEscape})
+	if model.state != stateBrowsingFiles {
+		t.Fatalf("expected return to stateBrowsingFiles, got %v", model.state)
+	}
+}

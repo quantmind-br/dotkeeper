@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
+	"os"
 )
 
 // Keep lipgloss import for cursor/prompt styles (component configuration)
@@ -22,6 +24,7 @@ const (
 	stateBrowsingFiles
 	stateBrowsingFolders
 	stateEditingSubItem
+	stateFilePickerActive
 )
 
 type settingItem struct {
@@ -61,6 +64,8 @@ type SettingsModel struct {
 	editingFieldIndex int
 	subEditParent     settingsState
 	subEditIndex      int
+	filePicker        filepicker.Model
+	filePickerParent  settingsState
 }
 
 // NewSettings creates a new settings model
@@ -90,6 +95,13 @@ func NewSettings(cfg *config.Config) SettingsModel {
 	foldersList.SetShowPagination(false)
 	foldersList.SetFilteringEnabled(false)
 
+	fp := filepicker.New()
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		fp.CurrentDirectory = home
+	}
+	fp.ShowHidden = true
+
 	m := SettingsModel{
 		config:      cfg,
 		width:       80,
@@ -99,6 +111,7 @@ func NewSettings(cfg *config.Config) SettingsModel {
 		filesList:   filesList,
 		foldersList: foldersList,
 		textInput:   ti,
+		filePicker:  fp,
 	}
 	m.refreshMainList()
 	m.refreshFilesList()
@@ -115,6 +128,31 @@ func (m SettingsModel) Init() tea.Cmd {
 
 // Update handles messages
 func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Route messages to filepicker when active (for non-standard msgs)
+	if m.state == stateFilePickerActive {
+		switch msg.(type) {
+		case tea.KeyMsg, tea.WindowSizeMsg:
+			// Let the main switch handle these
+		default:
+			var cmd tea.Cmd
+			m.filePicker, cmd = m.filePicker.Update(msg)
+			// Check for file selection
+			if didSelect, path := m.filePicker.DidSelectFile(msg); didSelect {
+				if m.filePickerParent == stateBrowsingFiles {
+					m.config.Files = append(m.config.Files, path)
+					m.refreshFilesList()
+				} else {
+					m.config.Folders = append(m.config.Folders, path)
+					m.refreshFoldersList()
+				}
+				m.refreshMainList()
+				m.state = m.filePickerParent
+				return m, nil
+			}
+			return m, cmd
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -133,10 +171,23 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleBrowsingFilesInput(msg)
 		case stateBrowsingFolders:
 			return m.handleBrowsingFoldersInput(msg)
+		case stateFilePickerActive:
+			return m.handleFilePickerInput(msg)
 		}
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m SettingsModel) handleFilePickerInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "esc" {
+		m.state = m.filePickerParent
+		return m, nil
+	}
+	// Forward to filepicker
+	var cmd tea.Cmd
+	m.filePicker, cmd = m.filePicker.Update(msg)
+	return m, cmd
 }
 
 // handleEditModeInput handles input when in edit mode
@@ -208,6 +259,10 @@ func (m SettingsModel) handleBrowsingFilesInput(msg tea.KeyMsg) (tea.Model, tea.
 	case "a":
 		m.startEditingSubItem(stateBrowsingFiles, len(m.config.Files), "")
 		return m, nil
+	case "b":
+		m.filePickerParent = stateBrowsingFiles
+		m.state = stateFilePickerActive
+		return m, m.filePicker.Init()
 	case "d":
 		selected, ok := m.filesList.SelectedItem().(subSettingItem)
 		if !ok || selected.isAdd || selected.index < 0 || selected.index >= len(m.config.Files) {
@@ -249,6 +304,10 @@ func (m SettingsModel) handleBrowsingFoldersInput(msg tea.KeyMsg) (tea.Model, te
 	case "a":
 		m.startEditingSubItem(stateBrowsingFolders, len(m.config.Folders), "")
 		return m, nil
+	case "b":
+		m.filePickerParent = stateBrowsingFolders
+		m.state = stateFilePickerActive
+		return m, m.filePicker.Init()
 	case "d":
 		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
 		if !ok || selected.isAdd || selected.index < 0 || selected.index >= len(m.config.Folders) {
@@ -490,6 +549,10 @@ func (m *SettingsModel) resizeLists() {
 		height = 6
 	}
 
+	if m.state == stateFilePickerActive {
+		m.filePicker.Height = height
+	}
+
 	m.mainList.SetSize(width, height)
 	m.filesList.SetSize(width, height)
 	m.foldersList.SetSize(width, height)
@@ -515,11 +578,11 @@ func (m SettingsModel) View() string {
 	case stateBrowsingFiles:
 		b.WriteString(styles.Subtitle.Render("Files") + "\n")
 		b.WriteString(m.filesList.View())
-		helpText = "↑/↓: Navigate | Enter: Edit | a: Add | d: Delete | s: Save | Esc: Back"
+		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateBrowsingFolders:
 		b.WriteString(styles.Subtitle.Render("Folders") + "\n")
 		b.WriteString(m.foldersList.View())
-		helpText = "↑/↓: Navigate | Enter: Edit | a: Add | d: Delete | s: Save | Esc: Back"
+		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateEditingSubItem:
 		title := "Editing File"
 		listView := m.filesList.View()
@@ -531,6 +594,14 @@ func (m SettingsModel) View() string {
 		b.WriteString("Value: " + m.textInput.View() + "\n\n")
 		b.WriteString(listView)
 		helpText = "Enter: Save item | Esc: Cancel"
+	case stateFilePickerActive:
+		title := "Browse Files"
+		if m.filePickerParent == stateBrowsingFolders {
+			title = "Browse Folders"
+		}
+		b.WriteString(styles.Subtitle.Render(title) + "\n")
+		b.WriteString(m.filePicker.View())
+		helpText = "Enter: Select | ↑/↓: Navigate | Esc: Cancel"
 	}
 
 	b.WriteString("\n" + RenderStatusBar(m.width, m.status, m.errMsg, helpText))
@@ -549,10 +620,16 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 		return []HelpEntry{
 			{"↑/↓", "Navigate"},
 			{"Enter", "Edit field"},
-			{"a", "Add item"},
+			{"a", "Type path"},
+			{"b", "Browse"},
 			{"d", "Delete item"},
 			{"s", "Save config"},
 			{"Esc", "Exit edit"},
+		}
+	case stateFilePickerActive:
+		return []HelpEntry{
+			{"Enter", "Select"},
+			{"Esc", "Cancel"},
 		}
 	default:
 		return []HelpEntry{
