@@ -623,3 +623,8 @@ func (m RestoreModel) HelpBindings() []HelpEntry {
 		return nil
 	}
 }
+
+// IsInputActive returns true when the restore view is in a phase that consumes keyboard input.
+func (m RestoreModel) IsInputActive() bool {
+	return m.phase == 1
+}

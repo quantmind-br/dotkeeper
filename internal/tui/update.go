@@ -8,8 +8,6 @@ import (
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
-const viewCount = 6
-
 type KeyMap struct {
 	Quit key.Binding
 	Tab  key.Binding
@@ -36,24 +34,30 @@ func DefaultKeyMap() KeyMap {
 var keys = DefaultKeyMap()
 
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
+	// Subtract tab bar height from available space for views
+	viewMsg := tea.WindowSizeMsg{
+		Width:  msg.Width,
+		Height: msg.Height - tabBarHeight,
+	}
+
 	var tm tea.Model
 
-	tm, _ = m.dashboard.Update(msg)
+	tm, _ = m.dashboard.Update(viewMsg)
 	m.dashboard = tm.(views.DashboardModel)
 
-	tm, _ = m.fileBrowser.Update(msg)
+	tm, _ = m.fileBrowser.Update(viewMsg)
 	m.fileBrowser = tm.(views.FileBrowserModel)
 
-	tm, _ = m.backupList.Update(msg)
+	tm, _ = m.backupList.Update(viewMsg)
 	m.backupList = tm.(views.BackupListModel)
 
-	tm, _ = m.restore.Update(msg)
+	tm, _ = m.restore.Update(viewMsg)
 	m.restore = tm.(views.RestoreModel)
 
-	tm, _ = m.settings.Update(msg)
+	tm, _ = m.settings.Update(viewMsg)
 	m.settings = tm.(views.SettingsModel)
 
-	tm, _ = m.logs.Update(msg)
+	tm, _ = m.logs.Update(viewMsg)
 	m.logs = tm.(views.LogsModel)
 }
 
@@ -113,18 +117,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if key.Matches(msg, keys.Tab) {
-			prevState := m.state
-			m.state = (m.state + 1) % viewCount
-			if m.state == BackupListView && prevState != BackupListView {
-				cmds = append(cmds, m.backupList.Refresh())
-			}
-			if m.state == RestoreView && prevState != RestoreView {
-				cmds = append(cmds, m.restore.Refresh())
-			}
-			if m.state == LogsView && prevState != LogsView {
-				cmds = append(cmds, m.logs.LoadHistory())
+			if !m.isInputActive() {
+				currentIdx := m.activeTabIndex()
+				nextIdx := (currentIdx + 1) % len(tabOrder)
+				prevState := m.state
+				m.state = tabOrder[nextIdx]
+				if m.state == BackupListView && prevState != BackupListView {
+					cmds = append(cmds, m.backupList.Refresh())
+				}
+				if m.state == RestoreView && prevState != RestoreView {
+					cmds = append(cmds, m.restore.Refresh())
+				}
+				if m.state == LogsView && prevState != LogsView {
+					cmds = append(cmds, m.logs.LoadHistory())
+				}
 			}
 			return m, tea.Batch(cmds...)
+		}
+
+		// Number key navigation (only when not in input-consuming state)
+		if !m.isInputActive() {
+			switch msg.String() {
+			case "1":
+				m.state = tabOrder[0]
+				return m, nil
+			case "2":
+				m.state = tabOrder[1]
+				cmds = append(cmds, m.backupList.Refresh())
+				return m, tea.Batch(cmds...)
+			case "3":
+				m.state = tabOrder[2]
+				cmds = append(cmds, m.restore.Refresh())
+				return m, tea.Batch(cmds...)
+			case "4":
+				m.state = tabOrder[3]
+				return m, nil
+			case "5":
+				m.state = tabOrder[4]
+				cmds = append(cmds, m.logs.LoadHistory())
+				return m, tea.Batch(cmds...)
+			}
 		}
 
 		if m.state == DashboardView {

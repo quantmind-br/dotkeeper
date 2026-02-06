@@ -414,3 +414,8 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 		{"e", "Edit mode"},
 	}
 }
+
+// IsEditing returns true when the settings view is in edit mode or editing a field.
+func (m SettingsModel) IsEditing() bool {
+	return m.editMode || m.editingField
+}

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -21,10 +22,6 @@ func (m Model) View() string {
 		switch m.state {
 		case DashboardView:
 			if hp, ok := interface{}(m.dashboard).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		case FileBrowserView:
-			if hp, ok := interface{}(m.fileBrowser).(views.HelpProvider); ok {
 				viewHelp = hp.HelpBindings()
 			}
 		case BackupListView:
@@ -54,6 +51,10 @@ func (m Model) View() string {
 		Foreground(lipgloss.Color("#7D56F4")).
 		MarginLeft(2)
 	b.WriteString(titleStyle.Render("dotkeeper - Dotfiles Backup Manager"))
+	b.WriteString("\n")
+
+	tabBar := components.NewTabBar(views.DefaultStyles())
+	b.WriteString(tabBar.View(m.activeTabIndex(), m.width))
 	b.WriteString("\n\n")
 
 	contentStyle := lipgloss.NewStyle().MarginLeft(2)
@@ -61,8 +62,6 @@ func (m Model) View() string {
 	switch m.state {
 	case DashboardView:
 		b.WriteString(contentStyle.Render(m.dashboard.View()))
-	case FileBrowserView:
-		b.WriteString(contentStyle.Render(m.fileBrowser.View()))
 	case BackupListView:
 		b.WriteString(contentStyle.Render(m.backupList.View()))
 	case RestoreView:
@@ -78,7 +77,7 @@ func (m Model) View() string {
 	helpStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666666")).
 		MarginLeft(2)
-	b.WriteString(helpStyle.Render("Tab: switch views | q: quit | ?: help"))
+	b.WriteString(helpStyle.Render("Tab/1-5: switch views | q: quit | ?: help"))
 	b.WriteString("\n")
 
 	return b.String()

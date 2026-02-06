@@ -219,3 +219,8 @@ func (m BackupListModel) HelpBindings() []HelpEntry {
 		{"↑/↓", "Navigate"},
 	}
 }
+
+// IsCreating returns true when the backup list is in backup creation mode (password input).
+func (m BackupListModel) IsCreating() bool {
+	return m.creatingBackup
+}

@@ -10,7 +10,8 @@ import (
 
 func globalHelp() []views.HelpEntry {
 	return []views.HelpEntry{
-		{Key: "Tab", Description: "Switch views"},
+		{Key: "Tab", Description: "Next view"},
+		{Key: "1-5", Description: "Go to view"},
 		{Key: "q", Description: "Quit"},
 		{Key: "?", Description: "Toggle help"},
 	}

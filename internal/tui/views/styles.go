@@ -4,16 +4,19 @@ import "github.com/charmbracelet/lipgloss"
 
 // Styles holds common styles for the TUI
 type Styles struct {
-	Title    lipgloss.Style
-	Subtitle lipgloss.Style
-	Normal   lipgloss.Style
-	Selected lipgloss.Style
-	Help     lipgloss.Style
-	Error    lipgloss.Style
-	Success  lipgloss.Style
-	Label    lipgloss.Style
-	Value    lipgloss.Style
-	Hint     lipgloss.Style
+	Title        lipgloss.Style
+	Subtitle     lipgloss.Style
+	Normal       lipgloss.Style
+	Selected     lipgloss.Style
+	Help         lipgloss.Style
+	Error        lipgloss.Style
+	Success      lipgloss.Style
+	Label        lipgloss.Style
+	Value        lipgloss.Style
+	Hint         lipgloss.Style
+	TabActive    lipgloss.Style
+	TabInactive  lipgloss.Style
+	TabSeparator lipgloss.Style
 }
 
 // DefaultStyles returns the default styles
@@ -46,5 +49,13 @@ func DefaultStyles() Styles {
 		Hint: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666")).
 			Italic(true),
+		TabActive: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#7D56F4")).
+			Underline(true),
+		TabInactive: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666666")),
+		TabSeparator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#444444")),
 	}
 }

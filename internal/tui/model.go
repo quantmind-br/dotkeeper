@@ -23,6 +23,12 @@ const (
 	SetupView
 )
 
+// tabOrder defines the views accessible via tabs (excludes FileBrowser and Setup)
+var tabOrder = []ViewState{DashboardView, BackupListView, RestoreView, SettingsView, LogsView}
+
+// tabBarHeight is the number of lines the tab bar occupies (tab line + spacing)
+const tabBarHeight = 2
+
 // Model represents the main TUI model
 type Model struct {
 	state       ViewState
@@ -96,4 +102,29 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) GetConfig() *config.Config {
 	return m.cfg
+}
+
+// activeTabIndex returns the index (0-4) of the current view in tabOrder.
+// Returns 0 (Dashboard) as fallback for views not in tabOrder.
+func (m Model) activeTabIndex() int {
+	for i, v := range tabOrder {
+		if v == m.state {
+			return i
+		}
+	}
+	return 0
+}
+
+// isInputActive returns true when the current view is consuming keyboard input
+// (e.g., text fields, password prompts, edit mode).
+func (m Model) isInputActive() bool {
+	switch m.state {
+	case SettingsView:
+		return m.settings.IsEditing()
+	case BackupListView:
+		return m.backupList.IsCreating()
+	case RestoreView:
+		return m.restore.IsInputActive()
+	}
+	return false
 }
