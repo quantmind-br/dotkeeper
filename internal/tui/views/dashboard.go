@@ -121,8 +121,7 @@ func (m DashboardModel) View() string {
 	if m.width >= styles.BreakpointWide {
 		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 	} else {
-		// Split into rows if needed, simplified for now
-		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+		statsBlock = lipgloss.JoinVertical(lipgloss.Left, cards...)
 	}
 
 	buttonIcons := map[string]string{
