@@ -1,22 +1,54 @@
 package components
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
+func stripANSI(s string) string {
+	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	return re.ReplaceAllString(s, "")
+}
+
 func TestTabBarActiveHighlight(t *testing.T) {
 	tb := NewTabBar(views.DefaultStyles())
+	outputs := make([]string, 5)
+	plainOutputs := make([]string, 5)
+
+	tabs := []string{"Dashboard", "Backups", "Restore", "Settings", "Logs"}
 
 	for i := 0; i < 5; i++ {
-		output := tb.View(i, 100)
-		if output == "" {
+		outputs[i] = tb.View(i, 100)
+		if outputs[i] == "" {
 			t.Errorf("View(%d, 100) returned empty string", i)
 		}
-		if !strings.Contains(output, "Dashboard") {
-			t.Errorf("View(%d, 100) missing 'Dashboard'", i)
+
+		plainOutputs[i] = stripANSI(outputs[i])
+
+		// Verify structural correctness: all labels must be present
+		for _, tab := range tabs {
+			if !strings.Contains(plainOutputs[i], tab) {
+				t.Errorf("View(%d, 100) plain text missing tab label '%s'", i, tab)
+			}
+		}
+	}
+
+	// Verify that different active indices produce visually different outputs (if ANSI present)
+	hasANSI := strings.Contains(outputs[0], "\x1b")
+	for i := 0; i < 5; i++ {
+		for j := i + 1; j < 5; j++ {
+			// Plain text should be identical for all (structural consistency)
+			if plainOutputs[i] != plainOutputs[j] {
+				t.Errorf("Structural mismatch: plain text of View(%d) != View(%d)", i, j)
+			}
+
+			// RAW output should differ if ANSI is present
+			if hasANSI && outputs[i] == outputs[j] {
+				t.Errorf("Visual mismatch: RAW output of View(%d) == View(%d) despite ANSI being enabled", i, j)
+			}
 		}
 	}
 

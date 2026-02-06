@@ -35,9 +35,13 @@ var keys = DefaultKeyMap()
 
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
 	// Subtract tab bar height from available space for views
+	viewHeight := msg.Height - tabBarHeight
+	if viewHeight < 0 {
+		viewHeight = 0
+	}
 	viewMsg := tea.WindowSizeMsg{
 		Width:  msg.Width,
-		Height: msg.Height - tabBarHeight,
+		Height: viewHeight,
 	}
 
 	var tm tea.Model

@@ -70,6 +70,9 @@ func (m Model) View() string {
 		b.WriteString(contentStyle.Render(m.settings.View()))
 	case LogsView:
 		b.WriteString(contentStyle.Render(m.logs.View()))
+	default:
+		// Fallback to dashboard for unreachable states (e.g., FileBrowserView)
+		b.WriteString(contentStyle.Render(m.dashboard.View()))
 	}
 
 	b.WriteString("\n\n")
