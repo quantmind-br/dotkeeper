@@ -52,8 +52,8 @@ type BackupListModel struct {
 }
 
 func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	l.Title = "Backups"
+	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
+	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 
 	ti := textinput.New()
@@ -132,7 +132,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width, msg.Height-6)
+		m.list.SetSize(msg.Width, msg.Height-ViewChromeHeight)
 
 	case backupsLoadedMsg:
 		m.list.SetItems([]list.Item(msg))
@@ -243,7 +243,7 @@ func (m BackupListModel) View() string {
 	if m.confirmingDelete {
 		s.WriteString(styles.Title.Render("Delete Backup") + "\n\n")
 		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", styles.Value.Render(m.deleteTarget)))
-		s.WriteString(styles.Help.Render("y: confirm | any other key: cancel"))
+		s.WriteString(RenderStatusBar(m.width, "", "", "y: confirm | any other key: cancel"))
 		return s.String()
 	}
 
@@ -251,21 +251,15 @@ func (m BackupListModel) View() string {
 		s.WriteString(styles.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(styles.Help.Render("Press Enter to create backup, Esc to cancel"))
+		s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, "Press Enter to create backup, Esc to cancel"))
 		return s.String()
 	}
 
+	s.WriteString(styles.Title.Render("Backups") + "\n\n")
 	s.WriteString(m.list.View())
 	s.WriteString("\n")
 
-	if m.backupStatus != "" {
-		s.WriteString(styles.Success.Render(m.backupStatus) + "\n")
-	}
-	if m.backupError != "" {
-		s.WriteString(styles.Error.Render(m.backupError) + "\n")
-	}
-
-	s.WriteString(styles.Help.Render("n: new backup | d: delete | r: refresh | ↑/↓: navigate"))
+	s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, "n: new backup | d: delete | r: refresh | ↑/↓: navigate"))
 
 	return s.String()
 }

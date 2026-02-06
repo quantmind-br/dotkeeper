@@ -66,6 +66,10 @@ func TestNewBackupList(t *testing.T) {
 		t.Errorf("View does not contain %s", expectedName2)
 	}
 
+	if !strings.Contains(view, "Backups") {
+		t.Error("View does not contain title 'Backups'")
+	}
+
 	if strings.Contains(view, "other-file") {
 		t.Error("View contains non-backup file 'other-file'")
 	}
