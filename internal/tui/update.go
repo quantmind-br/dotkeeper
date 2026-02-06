@@ -39,8 +39,7 @@ func DefaultKeyMap() KeyMap {
 var keys = DefaultKeyMap()
 
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
-	// Subtract tab bar height from available space for views
-	viewHeight := msg.Height - tabBarHeight
+	viewHeight := msg.Height - mainChromeHeight
 	if viewHeight < 0 {
 		viewHeight = 0
 	}
@@ -53,9 +52,6 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
 
 	tm, _ = m.dashboard.Update(viewMsg)
 	m.dashboard = tm.(views.DashboardModel)
-
-	tm, _ = m.fileBrowser.Update(viewMsg)
-	m.fileBrowser = tm.(views.FileBrowserModel)
 
 	tm, _ = m.backupList.Update(viewMsg)
 	m.backupList = tm.(views.BackupListModel)
@@ -83,7 +79,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			store, _ := history.NewStore()
 			m.history = store
 			m.dashboard = views.NewDashboard(cfg)
-			m.fileBrowser = views.NewFileBrowser(cfg)
 			m.backupList = views.NewBackupList(cfg, store)
 			m.restore = views.NewRestore(cfg, store)
 			m.settings = views.NewSettings(cfg)
@@ -108,6 +103,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.RefreshBackupListMsg:
 		cmd = m.backupList.Refresh()
 		cmds = append(cmds, cmd)
+
+	case views.DashboardNavigateMsg:
+		switch msg.Target {
+		case "backups":
+			m.state = BackupListView
+			cmds = append(cmds, m.backupList.Refresh())
+		case "restore":
+			m.state = RestoreView
+			cmds = append(cmds, m.restore.Refresh())
+		case "settings":
+			m.state = SettingsView
+		}
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		if m.showingHelp {
@@ -208,11 +216,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var model tea.Model
 		model, cmd = m.dashboard.Update(msg)
 		m.dashboard = model.(views.DashboardModel)
-		cmds = append(cmds, cmd)
-	case FileBrowserView:
-		var model tea.Model
-		model, cmd = m.fileBrowser.Update(msg)
-		m.fileBrowser = model.(views.FileBrowserModel)
 		cmds = append(cmds, cmd)
 	case BackupListView:
 		var model tea.Model

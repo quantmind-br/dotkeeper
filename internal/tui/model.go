@@ -15,7 +15,6 @@ type ViewState int
 
 const (
 	DashboardView ViewState = iota
-	FileBrowserView
 	BackupListView
 	RestoreView
 	SettingsView
@@ -26,8 +25,9 @@ const (
 // tabOrder defines the views accessible via tabs (excludes FileBrowser and Setup)
 var tabOrder = []ViewState{DashboardView, BackupListView, RestoreView, SettingsView, LogsView}
 
-// tabBarHeight is the number of lines the tab bar occupies (tab line + spacing)
-const tabBarHeight = 2
+// mainChromeHeight is the total number of lines consumed by the main view
+// frame: app title (1) + tab bar (1) + spacer (1) + post-content spacer (1) + global help footer (1) = 5.
+const mainChromeHeight = 5
 
 // Model represents the main TUI model
 type Model struct {
@@ -45,12 +45,11 @@ type Model struct {
 	cfg       *config.Config
 
 	// Sub-models for each view
-	dashboard   views.DashboardModel
-	fileBrowser views.FileBrowserModel
-	backupList  views.BackupListModel
-	restore     views.RestoreModel
-	settings    views.SettingsModel
-	logs        views.LogsModel
+	dashboard  views.DashboardModel
+	backupList views.BackupListModel
+	restore    views.RestoreModel
+	settings   views.SettingsModel
+	logs       views.LogsModel
 }
 
 func NewModel() Model {
@@ -72,16 +71,15 @@ func NewModel() Model {
 	}
 
 	return Model{
-		state:       DashboardView,
-		setupMode:   false,
-		cfg:         cfg,
-		history:     store,
-		dashboard:   views.NewDashboard(cfg),
-		fileBrowser: views.NewFileBrowser(cfg),
-		backupList:  views.NewBackupList(cfg, store),
-		restore:     views.NewRestore(cfg, store),
-		settings:    views.NewSettings(cfg),
-		logs:        views.NewLogs(cfg, store),
+		state:      DashboardView,
+		setupMode:  false,
+		cfg:        cfg,
+		history:    store,
+		dashboard:  views.NewDashboard(cfg),
+		backupList: views.NewBackupList(cfg, store),
+		restore:    views.NewRestore(cfg, store),
+		settings:   views.NewSettings(cfg),
+		logs:       views.NewLogs(cfg, store),
 	}
 }
 
@@ -92,7 +90,6 @@ func (m Model) Init() tea.Cmd {
 
 	return tea.Batch(
 		m.dashboard.Init(),
-		m.fileBrowser.Init(),
 		m.backupList.Init(),
 		m.restore.Init(),
 		m.settings.Init(),

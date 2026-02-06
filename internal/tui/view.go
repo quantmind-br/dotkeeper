@@ -66,7 +66,7 @@ func (m Model) View() string {
 	case LogsView:
 		b.WriteString(styles.ContentArea.Render(m.logs.View()))
 	default:
-		// Fallback to dashboard for unreachable states (e.g., FileBrowserView)
+		// Fallback to dashboard for unreachable states
 		b.WriteString(styles.ContentArea.Render(m.dashboard.View()))
 	}
 
