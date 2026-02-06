@@ -117,3 +117,28 @@ type HelpProvider interface {
 }
 
 type RefreshBackupListMsg struct{}
+
+func RenderStatusBar(width int, status string, errMsg string, helpText string) string {
+	styles := DefaultStyles()
+	var s strings.Builder
+
+	msg := ""
+	style := styles.Success
+	if errMsg != "" {
+		msg = errMsg
+		style = styles.Error
+	} else if status != "" {
+		msg = status
+		style = styles.Success
+	}
+
+	if msg != "" {
+		if width > 7 && len(msg) > width-4 {
+			msg = msg[:width-7] + "..."
+		}
+		s.WriteString(style.Render(msg) + "\n")
+	}
+
+	s.WriteString(styles.Help.Render(helpText))
+	return s.String()
+}
