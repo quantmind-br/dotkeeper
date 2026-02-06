@@ -524,6 +524,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // renderBackupList renders the backup list selection phase
 func (m RestoreModel) renderBackupList() string {
+	st := m.ctx.Styles
 	if m.loading {
 		return lipgloss.JoinVertical(lipgloss.Center,
 			"\n",
@@ -534,7 +535,7 @@ func (m RestoreModel) renderBackupList() string {
 	var s strings.Builder
 	s.WriteString(m.backupList.View())
 	s.WriteString("\n")
-	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, "", st))
 	return s.String()
 }
 
@@ -547,12 +548,12 @@ func (m RestoreModel) renderPassword() string {
 			"\nValidating password...",
 		)
 	}
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 	var s strings.Builder
 	s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 	s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 	s.WriteString(m.passwordInput.View() + "\n\n")
-	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, "", st))
 	return s.String()
 }
 
@@ -565,7 +566,7 @@ func (m RestoreModel) renderFileSelect() string {
 			"\n"+m.restoreStatus+"...",
 		)
 	}
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 	var s strings.Builder
 	s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
 
@@ -575,7 +576,7 @@ func (m RestoreModel) renderFileSelect() string {
 
 	s.WriteString(m.fileList.View())
 	s.WriteString("\n")
-	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, "", st))
 	return s.String()
 }
 
@@ -597,7 +598,7 @@ func (m RestoreModel) renderDiffPreview() string {
 			"\nLoading diff...",
 		)
 	}
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 	var s strings.Builder
 	s.WriteString(st.Title.Render("Diff Preview") + "\n")
 	s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
@@ -608,13 +609,13 @@ func (m RestoreModel) renderDiffPreview() string {
 		Height(m.viewport.Height)
 
 	s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
-	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.restoreError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.restoreError, "", st))
 	return s.String()
 }
 
 // renderResults renders the results display phase
 func (m RestoreModel) renderResults() string {
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 	var s strings.Builder
 	s.WriteString(st.Title.Render("Restore Complete") + "\n\n")
 
@@ -668,7 +669,7 @@ func (m RestoreModel) View() string {
 	case phaseResults:
 		return m.renderResults()
 	}
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 	return st.Title.Render("Restore") + "\n\nPhase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)"
 }
 

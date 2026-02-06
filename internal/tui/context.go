@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -16,5 +17,6 @@ func NewProgramContext(cfg *config.Config, store *history.Store) *ProgramContext
 		Store:  store,
 		Width:  0,
 		Height: 0,
+		Styles: styles.DefaultStyles(),
 	}
 }

@@ -4,10 +4,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 func TestRenderStatusBar_StatusOnly(t *testing.T) {
-	result := stripANSI(RenderStatusBar(80, "Backup created", "", "n: new | r: refresh"))
+	result := stripANSI(RenderStatusBar(80, "Backup created", "", "n: new | r: refresh", styles.DefaultStyles()))
 	if !strings.Contains(result, "Backup created") {
 		t.Error("expected status text")
 	}
@@ -17,7 +19,7 @@ func TestRenderStatusBar_StatusOnly(t *testing.T) {
 }
 
 func TestRenderStatusBar_ErrorOnly(t *testing.T) {
-	result := stripANSI(RenderStatusBar(80, "", "Failed", "n: new"))
+	result := stripANSI(RenderStatusBar(80, "", "Failed", "n: new", styles.DefaultStyles()))
 	if !strings.Contains(result, "Failed") {
 		t.Error("expected error text")
 	}
@@ -27,7 +29,7 @@ func TestRenderStatusBar_ErrorOnly(t *testing.T) {
 }
 
 func TestRenderStatusBar_ErrorWins(t *testing.T) {
-	result := stripANSI(RenderStatusBar(80, "Success", "Error occurred", "help"))
+	result := stripANSI(RenderStatusBar(80, "Success", "Error occurred", "help", styles.DefaultStyles()))
 	if !strings.Contains(result, "Error occurred") {
 		t.Error("expected error to win")
 	}
@@ -37,7 +39,7 @@ func TestRenderStatusBar_ErrorWins(t *testing.T) {
 }
 
 func TestRenderStatusBar_EmptyAll(t *testing.T) {
-	result := stripANSI(RenderStatusBar(80, "", "", "help text"))
+	result := stripANSI(RenderStatusBar(80, "", "", "help text", styles.DefaultStyles()))
 	if !strings.Contains(result, "help text") {
 		t.Error("expected help text")
 	}
@@ -45,7 +47,7 @@ func TestRenderStatusBar_EmptyAll(t *testing.T) {
 
 func TestRenderStatusBar_Truncation(t *testing.T) {
 	longMsg := strings.Repeat("x", 200)
-	result := RenderStatusBar(40, longMsg, "", "help")
+	result := RenderStatusBar(40, longMsg, "", "help", styles.DefaultStyles())
 	if !strings.Contains(stripANSI(result), "help") {
 		t.Error("expected help text")
 	}

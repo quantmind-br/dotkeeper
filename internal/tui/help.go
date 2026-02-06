@@ -65,8 +65,7 @@ func globalHelp() []views.HelpEntry {
 
 // renderHelpOverlay renders the help overlay using bubbles/help.Model.
 // It combines global and view-specific help bindings into a styled overlay.
-func renderHelpOverlay(helpModel help.Model, global []views.HelpEntry, viewHelp []views.HelpEntry, width, height int) string {
-	s := styles.DefaultStyles()
+func renderHelpOverlay(helpModel help.Model, global []views.HelpEntry, viewHelp []views.HelpEntry, width, height int, s styles.Styles) string {
 
 	keyMap := NewHelpKeyMap(global, viewHelp)
 	helpContent := helpModel.View(keyMap)

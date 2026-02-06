@@ -3,6 +3,7 @@ package views
 import (
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // ProgramContext holds shared state for all TUI views.
@@ -13,6 +14,7 @@ type ProgramContext struct {
 	Store  *history.Store
 	Width  int
 	Height int
+	Styles styles.Styles
 }
 
 // NewProgramContext creates a new ProgramContext with the given config and store.
@@ -23,6 +25,7 @@ func NewProgramContext(cfg *config.Config, store *history.Store) *ProgramContext
 		Store:  store,
 		Width:  0,
 		Height: 0,
+		Styles: styles.DefaultStyles(),
 	}
 }
 
@@ -37,5 +40,6 @@ func ensureProgramContext(ctx *ProgramContext) *ProgramContext {
 		Store:  nil,
 		Width:  0,
 		Height: 0,
+		Styles: styles.DefaultStyles(),
 	}
 }

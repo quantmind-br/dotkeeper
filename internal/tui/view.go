@@ -30,12 +30,12 @@ func (m Model) View() string {
 
 	if m.showingHelp {
 		viewHelp := m.currentViewHelp()
-		return renderHelpOverlay(m.help, globalHelp(), viewHelp, m.width, m.height)
+		return renderHelpOverlay(m.help, globalHelp(), viewHelp, m.width, m.height, m.ctx.Styles)
 	}
 
 	var b strings.Builder
 
-	s := styles.DefaultStyles()
+	s := m.ctx.Styles
 
 	b.WriteString(s.AppTitle.Render("DotKeeper - Dotfiles Backup Manager"))
 	b.WriteString("\n")

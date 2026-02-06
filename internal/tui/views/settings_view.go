@@ -4,14 +4,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // View renders the settings view
 func (m SettingsModel) View() string {
 	var b strings.Builder
 
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 
 	if m.loading {
 		return lipgloss.JoinVertical(lipgloss.Center,
@@ -64,7 +63,7 @@ func (m SettingsModel) View() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n" + RenderStatusBar(m.ctx.Width, m.status, m.errMsg, ""))
+	b.WriteString("\n" + RenderStatusBar(m.ctx.Width, m.status, m.errMsg, "", st))
 
 	return b.String()
 }

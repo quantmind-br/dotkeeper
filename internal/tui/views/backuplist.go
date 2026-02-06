@@ -250,7 +250,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m BackupListModel) View() string {
 	var s strings.Builder
 
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 
 	if m.loading && !m.creatingBackup && !m.confirmingDelete {
 		return lipgloss.JoinVertical(lipgloss.Center,
@@ -270,7 +270,7 @@ func (m BackupListModel) View() string {
 		s.WriteString(st.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, "", st))
 		return s.String()
 	}
 
@@ -278,7 +278,7 @@ func (m BackupListModel) View() string {
 	s.WriteString(m.list.View())
 	s.WriteString("\n")
 
-	s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, "", st))
 
 	return s.String()
 }

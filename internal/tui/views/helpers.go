@@ -152,8 +152,7 @@ type DashboardNavigateMsg struct {
 	Target string
 }
 
-func RenderStatusBar(width int, status string, errMsg string, helpText string) string {
-	st := styles.DefaultStyles()
+func RenderStatusBar(width int, status string, errMsg string, helpText string, st styles.Styles) string {
 	var s strings.Builder
 
 	msg := ""

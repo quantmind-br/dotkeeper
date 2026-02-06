@@ -97,7 +97,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the dashboard
 func (m DashboardModel) View() string {
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 
 	if m.loading {
 		return lipgloss.JoinVertical(lipgloss.Center,

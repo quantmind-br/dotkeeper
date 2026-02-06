@@ -52,7 +52,6 @@ func (i logItem) FilterValue() string {
 	return i.entry.Operation
 }
 
-
 // NewLogs creates a new logs model.
 func NewLogs(ctx *ProgramContext) LogsModel {
 	l := styles.NewMinimalList()
@@ -167,7 +166,7 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the logs view
 func (m LogsModel) View() string {
 	var s strings.Builder
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 
 	if m.loading {
 		return lipgloss.JoinVertical(lipgloss.Center,
@@ -198,7 +197,7 @@ func (m LogsModel) View() string {
 		s.WriteString(m.list.View())
 	}
 
-	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.err, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.err, "", st))
 
 	return s.String()
 }

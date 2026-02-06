@@ -386,7 +386,7 @@ func (m SetupModel) View() string {
 
 	var s strings.Builder
 
-	st := styles.DefaultStyles()
+	st := m.ctx.Styles
 
 	var errMsg string
 	var statusText string
@@ -539,7 +539,7 @@ func (m SetupModel) View() string {
 		}
 	}
 
-	s.WriteString(RenderStatusBar(m.ctx.Width, statusText, errMsg, helpText))
+	s.WriteString(RenderStatusBar(m.ctx.Width, statusText, errMsg, helpText, st))
 
 	return s.String()
 }
