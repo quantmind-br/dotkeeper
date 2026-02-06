@@ -29,23 +29,33 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 
 	// Type assertion required after Update() - all views implement views.View interface
 	tm, cmd = m.dashboard.Update(viewMsg)
-	m.dashboard = tm.(views.DashboardModel)
+	if d, ok := tm.(views.DashboardModel); ok {
+		m.dashboard = d
+	}
 	cmds = append(cmds, cmd)
 
 	tm, cmd = m.backupList.Update(viewMsg)
-	m.backupList = tm.(views.BackupListModel)
+	if b, ok := tm.(views.BackupListModel); ok {
+		m.backupList = b
+	}
 	cmds = append(cmds, cmd)
 
 	tm, cmd = m.restore.Update(viewMsg)
-	m.restore = tm.(views.RestoreModel)
+	if r, ok := tm.(views.RestoreModel); ok {
+		m.restore = r
+	}
 	cmds = append(cmds, cmd)
 
 	tm, cmd = m.settings.Update(viewMsg)
-	m.settings = tm.(views.SettingsModel)
+	if s, ok := tm.(views.SettingsModel); ok {
+		m.settings = s
+	}
 	cmds = append(cmds, cmd)
 
 	tm, cmd = m.logs.Update(viewMsg)
-	m.logs = tm.(views.LogsModel)
+	if l, ok := tm.(views.LogsModel); ok {
+		m.logs = l
+	}
 	cmds = append(cmds, cmd)
 
 	return tea.Batch(cmds...)
@@ -100,7 +110,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			var model tea.Model
 			model, cmd = m.setup.Update(msg)
-			m.setup = model.(views.SetupModel)
+			if su, ok := model.(views.SetupModel); ok {
+				m.setup = su
+			}
 			return m, cmd
 		}
 	}
@@ -238,27 +250,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DashboardView:
 		var model tea.Model
 		model, cmd = m.dashboard.Update(msg)
-		m.dashboard = model.(views.DashboardModel)
+		if d, ok := model.(views.DashboardModel); ok {
+			m.dashboard = d
+		}
 		cmds = append(cmds, cmd)
 	case BackupListView:
 		var model tea.Model
 		model, cmd = m.backupList.Update(msg)
-		m.backupList = model.(views.BackupListModel)
+		if b, ok := model.(views.BackupListModel); ok {
+			m.backupList = b
+		}
 		cmds = append(cmds, cmd)
 	case RestoreView:
 		var model tea.Model
 		model, cmd = m.restore.Update(msg)
-		m.restore = model.(views.RestoreModel)
+		if r, ok := model.(views.RestoreModel); ok {
+			m.restore = r
+		}
 		cmds = append(cmds, cmd)
 	case SettingsView:
 		var model tea.Model
 		model, cmd = m.settings.Update(msg)
-		m.settings = model.(views.SettingsModel)
+		if s, ok := model.(views.SettingsModel); ok {
+			m.settings = s
+		}
 		cmds = append(cmds, cmd)
 	case LogsView:
 		var model tea.Model
 		model, cmd = m.logs.Update(msg)
-		m.logs = model.(views.LogsModel)
+		if l, ok := model.(views.LogsModel); ok {
+			m.logs = l
+		}
 		cmds = append(cmds, cmd)
 	}
 

@@ -154,3 +154,60 @@ content.WriteString(helpContent)
 - tea.Tick is the correct pattern for periodic updates in BubbleTea
 - Reschedule in Update() to maintain continuous refresh cycles
 - Batching multiple commands ensures all async operations run in parallel
+
+## Task 17: Integration Verification + Type Assertion Safety Audit
+
+**Date**: 2026-02-06
+**Task**: Replace unchecked type assertions in `internal/tui/update.go` with checked `, ok` assertions and verify TUI integration.
+
+### Findings:
+
+1. Replaced all 11 unsafe `model.(Type)` assertions in `update.go` with guarded assertions (`if v, ok := ...; ok { ... }`) across:
+   - `propagateWindowSize()` (5 assertions)
+   - setup-mode update path (1 assertion)
+   - state routing switch (5 assertions)
+
+2. Verification passed:
+   - `go build ./cmd/dotkeeper/` ✅
+   - `go test ./internal/tui/... -race -count=1` ✅
+   - `go vet ./internal/tui/...` ✅
+
+3. Unsafe-assertion grep check returned zero lines with fixed-string filtering:
+   - `grep -nF '.(' internal/tui/update.go | grep -vF ', ok' | grep -vF 'switch' | grep -vF '//' | grep -vF 'msg.(type)' | grep -vF 'msg.(tea.'`
+
+4. Safety pattern preserved behavior (no routing/order/command collection changes), while removing panic risk from unchecked assertions.
+
+## Task 17: Safe Type Assertions in TUI Update Routing
+
+**Date**: 2026-02-06
+**Task**: Replace unchecked type assertions in `internal/tui/update.go` with safe `value, ok` pattern
+
+### Changes Made:
+
+1. Replaced all 11 unchecked assertions (`model.(views.XxxModel)` and `tm.(views.XxxModel)`) with guarded assertions:
+   - `if d, ok := model.(views.DashboardModel); ok { m.dashboard = d }`
+   - `if b, ok := model.(views.BackupListModel); ok { m.backupList = b }`
+   - `if r, ok := model.(views.RestoreModel); ok { m.restore = r }`
+   - `if s, ok := model.(views.SettingsModel); ok { m.settings = s }`
+   - `if l, ok := model.(views.LogsModel); ok { m.logs = l }`
+   - `if su, ok := model.(views.SetupModel); ok { m.setup = su }`
+
+2. Applied in all required routing points:
+   - `propagateWindowSize()` (5 assertions)
+   - setup mode default branch (1 assertion)
+   - state-specific routing switch (5 assertions)
+
+3. Preserved behavior by silently retaining prior model values when assertion fails (no logging/panic/order changes).
+
+### Verification Passed:
+
+- `go build ./cmd/dotkeeper/` ✅
+- `go vet ./internal/tui/...` ✅
+- `go test ./internal/tui/... -race -count=1` ✅
+- assertion grep check returns zero matches (using extended-regex equivalent) ✅
+- LSP diagnostics for `internal/tui/update.go`: no errors ✅
+
+### Pattern:
+
+- BubbleTea sub-view updates should always use safe type assertions after `Update()` returns `tea.Model`.
+- Guarded assertions prevent rare panic paths while keeping normal behavior unchanged.
