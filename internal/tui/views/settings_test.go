@@ -44,6 +44,7 @@ func TestNewSettings(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
+	s = stripANSI(s)
 	return len(s) >= len(substr) && search(s, substr)
 }
 

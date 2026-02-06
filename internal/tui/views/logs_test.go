@@ -125,7 +125,7 @@ func TestLogsView(t *testing.T) {
 	m := NewLogs(cfg, store)
 
 	// Test Empty View
-	view := m.View()
+	view := stripANSI(m.View())
 	if !strings.Contains(view, "Operation History [all]") {
 		t.Error("expected title in view")
 	}
