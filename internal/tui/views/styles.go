@@ -30,11 +30,33 @@ type Styles struct {
 	CardLabel       lipgloss.Style
 	ActionButton    lipgloss.Style
 	ActionButtonKey lipgloss.Style
+	AppTitle        lipgloss.Style
+	ContentArea     lipgloss.Style
+	GlobalHelp      lipgloss.Style
+	HelpKey         lipgloss.Style
+	HelpTitle       lipgloss.Style
+	HelpSection     lipgloss.Style
+	HelpOverlay     lipgloss.Style
 }
 
 // DefaultStyles returns the default styles
 func DefaultStyles() Styles {
 	return Styles{
+		AppTitle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#7D56F4")).
+			MarginLeft(2),
+		ContentArea: lipgloss.NewStyle().MarginLeft(2),
+		GlobalHelp: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666666")).
+			MarginLeft(2),
+		HelpKey:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")),
+		HelpTitle:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")),
+		HelpSection: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#AAAAAA")),
+		HelpOverlay: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#7D56F4")).
+			Padding(1, 2),
 		Title: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#7D56F4")).

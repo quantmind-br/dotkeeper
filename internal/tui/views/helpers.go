@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func expandHome(p string) string {
@@ -141,4 +143,8 @@ func RenderStatusBar(width int, status string, errMsg string, helpText string) s
 
 	s.WriteString(styles.Help.Render(helpText))
 	return s.String()
+}
+
+func PlaceOverlay(width, height int, content string) string {
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
 }

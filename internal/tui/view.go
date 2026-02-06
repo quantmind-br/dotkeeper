@@ -3,7 +3,6 @@ package tui
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
@@ -46,41 +45,34 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
-		MarginLeft(2)
-	b.WriteString(titleStyle.Render("dotkeeper - Dotfiles Backup Manager"))
+	styles := views.DefaultStyles()
+
+	b.WriteString(styles.AppTitle.Render("dotkeeper - Dotfiles Backup Manager"))
 	b.WriteString("\n")
 
-	tabBar := components.NewTabBar(views.DefaultStyles())
+	tabBar := components.NewTabBar(styles)
 	b.WriteString(tabBar.View(m.activeTabIndex(), m.width))
 	b.WriteString("\n\n")
 
-	contentStyle := lipgloss.NewStyle().MarginLeft(2)
-
 	switch m.state {
 	case DashboardView:
-		b.WriteString(contentStyle.Render(m.dashboard.View()))
+		b.WriteString(styles.ContentArea.Render(m.dashboard.View()))
 	case BackupListView:
-		b.WriteString(contentStyle.Render(m.backupList.View()))
+		b.WriteString(styles.ContentArea.Render(m.backupList.View()))
 	case RestoreView:
-		b.WriteString(contentStyle.Render(m.restore.View()))
+		b.WriteString(styles.ContentArea.Render(m.restore.View()))
 	case SettingsView:
-		b.WriteString(contentStyle.Render(m.settings.View()))
+		b.WriteString(styles.ContentArea.Render(m.settings.View()))
 	case LogsView:
-		b.WriteString(contentStyle.Render(m.logs.View()))
+		b.WriteString(styles.ContentArea.Render(m.logs.View()))
 	default:
 		// Fallback to dashboard for unreachable states (e.g., FileBrowserView)
-		b.WriteString(contentStyle.Render(m.dashboard.View()))
+		b.WriteString(styles.ContentArea.Render(m.dashboard.View()))
 	}
 
 	b.WriteString("\n\n")
 
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
-		MarginLeft(2)
-	b.WriteString(helpStyle.Render("Tab/1-5: switch views | q: quit | ?: help"))
+	b.WriteString(styles.GlobalHelp.Render("Tab/1-5: switch views | q: quit | ?: help"))
 	b.WriteString("\n")
 
 	return b.String()
