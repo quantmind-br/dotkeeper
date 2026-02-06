@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
@@ -47,27 +48,52 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the dashboard
 func (m DashboardModel) View() string {
-	var s string
-
 	styles := DefaultStyles()
-	s += styles.Title.Render("Dashboard") + "\n\n"
 
-	// Status section
+	var lastBackupVal string
 	if !m.lastBackup.IsZero() {
-		s += fmt.Sprintf("Last Backup: %s\n", m.lastBackup.Format("2006-01-02 15:04"))
+		lastBackupVal = m.lastBackup.Format("2006-01-02 15:04")
 	} else {
-		s += "Last Backup: Never\n"
+		lastBackupVal = "Never"
 	}
 
-	s += fmt.Sprintf("Files Tracked: %d\n\n", m.fileCount)
+	card1 := styles.Card.Render(
+		styles.CardTitle.Render(lastBackupVal) + "\n" +
+			styles.CardLabel.Render("Last Backup"),
+	)
 
-	// Quick actions
-	s += "Quick Actions:\n"
-	s += "  [b] Backup now\n"
-	s += "  [r] Restore\n"
-	s += "  [s] Settings\n"
+	card2 := styles.Card.Render(
+		styles.CardTitle.Render(fmt.Sprintf("%d", m.fileCount)) + "\n" +
+			styles.CardLabel.Render("Files Tracked"),
+	)
 
-	return s
+	var statsBlock string
+	if m.width >= 60 {
+		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, card1, card2)
+	} else {
+		statsBlock = lipgloss.JoinVertical(lipgloss.Left, card1, card2)
+	}
+
+	btnBackup := styles.ActionButton.Render(styles.ActionButtonKey.Render("b") + " Backup")
+	btnRestore := styles.ActionButton.Render(styles.ActionButtonKey.Render("r") + " Restore")
+	btnSettings := styles.ActionButton.Render(styles.ActionButtonKey.Render("s") + " Settings")
+
+	var actionsBlock string
+	if m.width >= 60 {
+		actionsBlock = lipgloss.JoinHorizontal(lipgloss.Top, btnBackup, btnRestore, btnSettings)
+	} else {
+		actionsBlock = lipgloss.JoinVertical(lipgloss.Left, btnBackup, btnRestore, btnSettings)
+	}
+
+	statusBar := RenderStatusBar(m.width, "", "", "b: backup | r: restore | s: settings")
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		statsBlock,
+		"\n",
+		actionsBlock,
+		"\n",
+		statusBar,
+	)
 }
 
 type statusMsg struct {
