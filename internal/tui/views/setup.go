@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // SetupStep represents the current step in the setup wizard
@@ -104,9 +105,9 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.input.Focus()
 
 	case StepBackupDir:
-		m.config.BackupDir = expandHome(m.input.Value())
+		m.config.BackupDir = pathutil.ExpandHome(m.input.Value())
 		if m.config.BackupDir == "" {
-			m.config.BackupDir = expandHome("~/.dotfiles")
+			m.config.BackupDir = pathutil.ExpandHome("~/.dotfiles")
 		}
 		m.step = StepGitRemote
 		m.resetInput()
@@ -126,7 +127,7 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 			m.resetInput()
 			m.input.Focus()
 		} else {
-			expandedPath, err := ValidateFilePath(expandHome(value))
+			expandedPath, err := ValidateFilePath(pathutil.ExpandHome(value))
 			if err != nil {
 				m.validationErr = err.Error()
 			} else {
@@ -143,7 +144,7 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 			m.step = StepConfirm
 			m.resetInput()
 		} else {
-			expandedPath, err := ValidateFolderPath(expandHome(value))
+			expandedPath, err := ValidateFolderPath(pathutil.ExpandHome(value))
 			if err != nil {
 				m.validationErr = err.Error()
 			} else {
@@ -182,82 +183,81 @@ func (m *SetupModel) resetInput() {
 func (m SetupModel) View() string {
 	var s strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4"))
-	subtitleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
-	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	styles := DefaultStyles()
+
+	var errMsg string
+	var statusText string
+	var helpText string
 
 	switch m.step {
 	case StepWelcome:
-		s.WriteString(titleStyle.Render("Welcome to dotkeeper!") + "\n\n")
+		s.WriteString(styles.Title.Render("Welcome to dotkeeper!") + "\n\n")
 		s.WriteString("This wizard will help you set up dotkeeper for the first time.\n\n")
 		s.WriteString("You'll configure:\n")
 		s.WriteString("  • Backup directory\n")
 		s.WriteString("  • Git remote repository\n")
-		s.WriteString("  • Files and folders to backup\n\n")
-		s.WriteString(subtitleStyle.Render("Press Enter to continue..."))
+		s.WriteString("  • Files and folders to backup\n")
+		helpText = "Enter: continue"
 
 	case StepBackupDir:
-		s.WriteString(titleStyle.Render("Step 1: Backup Directory") + "\n\n")
+		s.WriteString(styles.Title.Render("Step 1: Backup Directory") + "\n\n")
 		s.WriteString("Where should backups be stored?\n")
 		s.WriteString("(Default: ~/.dotfiles)\n\n")
-		s.WriteString(m.input.View() + "\n\n")
-		s.WriteString(subtitleStyle.Render("Press Enter to continue, Esc to go back"))
+		s.WriteString(m.input.View() + "\n")
+		helpText = "Enter: continue | Esc: back"
 
 	case StepGitRemote:
-		s.WriteString(titleStyle.Render("Step 2: Git Remote") + "\n\n")
+		s.WriteString(styles.Title.Render("Step 2: Git Remote") + "\n\n")
 		s.WriteString("Enter your git repository URL (optional):\n\n")
-		s.WriteString(m.input.View() + "\n\n")
-		s.WriteString(subtitleStyle.Render("Press Enter to continue, Esc to go back"))
+		s.WriteString(m.input.View() + "\n")
+		helpText = "Enter: continue | Esc: back"
 
 	case StepAddFiles:
-		s.WriteString(titleStyle.Render("Step 3: Add Files") + "\n\n")
+		s.WriteString(styles.Title.Render("Step 3: Add Files") + "\n\n")
 		s.WriteString("Enter file paths to backup (one per line).\n")
 		s.WriteString("Press Enter with empty input to continue.\n\n")
 
 		if m.validationErr != "" {
-			errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
-			s.WriteString(errorStyle.Render("✗ "+m.validationErr) + "\n\n")
+			errMsg = "✗ " + m.validationErr
 		}
 
 		if len(m.addedFiles) > 0 {
-			s.WriteString(highlightStyle.Render("Added files:") + "\n")
+			s.WriteString(styles.Title.Render("Added files:") + "\n")
 			for _, f := range m.addedFiles {
 				s.WriteString("  • " + f + "\n")
 			}
 			s.WriteString("\n")
 		}
 
-		s.WriteString(m.input.View() + "\n\n")
-		s.WriteString(subtitleStyle.Render("Press Enter to add/continue, Esc to go back"))
+		s.WriteString(m.input.View() + "\n")
+		helpText = "Enter: add/continue | Esc: back"
 
 	case StepAddFolders:
-		s.WriteString(titleStyle.Render("Step 4: Add Folders") + "\n\n")
+		s.WriteString(styles.Title.Render("Step 4: Add Folders") + "\n\n")
 		s.WriteString("Enter folder paths to backup (one per line).\n")
 		s.WriteString("Press Enter with empty input to continue.\n\n")
 
 		if m.validationErr != "" {
-			errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
-			s.WriteString(errorStyle.Render("✗ "+m.validationErr) + "\n\n")
+			errMsg = "✗ " + m.validationErr
 		}
 
 		if len(m.addedFolders) > 0 {
-			s.WriteString(highlightStyle.Render("Added folders:") + "\n")
+			s.WriteString(styles.Title.Render("Added folders:") + "\n")
 			for _, f := range m.addedFolders {
 				s.WriteString("  • " + f + "\n")
 			}
 			s.WriteString("\n")
 		}
 
-		s.WriteString(m.input.View() + "\n\n")
-		s.WriteString(subtitleStyle.Render("Press Enter to add/continue, Esc to go back"))
+		s.WriteString(m.input.View() + "\n")
+		helpText = "Enter: add/continue | Esc: back"
 
 	case StepConfirm:
-		s.WriteString(titleStyle.Render("Step 5: Confirm Configuration") + "\n\n")
-		s.WriteString(highlightStyle.Render("Backup Directory: ") + m.config.BackupDir + "\n")
-		s.WriteString(highlightStyle.Render("Git Remote: ") + m.config.GitRemote + "\n")
-		s.WriteString(highlightStyle.Render("Files: ") + fmt.Sprintf("%d", len(m.addedFiles)) + "\n")
-		s.WriteString(highlightStyle.Render("Folders: ") + fmt.Sprintf("%d", len(m.addedFolders)) + "\n\n")
+		s.WriteString(styles.Title.Render("Step 5: Confirm Configuration") + "\n\n")
+		s.WriteString(styles.Label.Render("Backup Directory: ") + m.config.BackupDir + "\n")
+		s.WriteString(styles.Label.Render("Git Remote: ") + m.config.GitRemote + "\n")
+		s.WriteString(styles.Label.Render("Files: ") + fmt.Sprintf("%d", len(m.addedFiles)) + "\n")
+		s.WriteString(styles.Label.Render("Folders: ") + fmt.Sprintf("%d", len(m.addedFolders)) + "\n\n")
 
 		if len(m.addedFiles) > 0 {
 			s.WriteString("Files:\n")
@@ -275,19 +275,22 @@ func (m SetupModel) View() string {
 			s.WriteString("\n")
 		}
 
-		s.WriteString(subtitleStyle.Render("Press Enter to save, Esc to go back"))
+		helpText = "Enter: save | Esc: back"
 
 	case StepComplete:
 		if m.err != nil {
-			s.WriteString(titleStyle.Render("Setup Failed") + "\n\n")
-			s.WriteString("Error: " + m.err.Error() + "\n\n")
-			s.WriteString(subtitleStyle.Render("Press Ctrl+C to exit"))
+			s.WriteString(styles.Title.Render("Setup Failed") + "\n\n")
+			errMsg = m.err.Error()
+			helpText = "Ctrl+C: exit"
 		} else {
-			s.WriteString(successStyle.Render("✓ Setup Complete!") + "\n\n")
-			s.WriteString("Your dotkeeper configuration has been saved.\n\n")
-			s.WriteString(subtitleStyle.Render("Press Ctrl+C to exit"))
+			s.WriteString(styles.Success.Render("✓ Setup Complete!") + "\n\n")
+			s.WriteString("Your dotkeeper configuration has been saved.\n")
+			statusText = "Configuration saved"
+			helpText = "Ctrl+C: exit"
 		}
 	}
+
+	s.WriteString(RenderStatusBar(m.width, statusText, errMsg, helpText))
 
 	return s.String()
 }

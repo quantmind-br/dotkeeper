@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // FileInfo represents metadata about a file to be backed up
@@ -31,7 +33,7 @@ func CollectFiles(paths []string) ([]FileInfo, error) {
 		if trimmed == "" {
 			continue
 		}
-		expanded := expandHome(trimmed)
+		expanded := pathutil.ExpandHome(trimmed)
 		if err := collectPath(expanded, &files, visited, 0); err != nil {
 			// Log error but continue with other paths
 			log.Printf("Warning: skipping %s: %v", expanded, err)
@@ -104,17 +106,4 @@ func collectPath(path string, files *[]FileInfo, visited map[string]bool, depth 
 	})
 
 	return nil
-}
-
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~/") || path == "~" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			if path == "~" {
-				return home
-			}
-			return filepath.Join(home, path[2:])
-		}
-	}
-	return path
 }

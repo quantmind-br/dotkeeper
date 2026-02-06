@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // Keep lipgloss import for cursor/prompt styles (component configuration)
@@ -406,7 +407,7 @@ func (m *SettingsModel) saveFieldValue(value string) {
 	} else {
 		switch m.editingFieldIndex {
 		case 0:
-			m.config.BackupDir = expandHome(value)
+			m.config.BackupDir = pathutil.ExpandHome(value)
 		case 1:
 			m.config.GitRemote = value
 		case 4:
@@ -516,7 +517,7 @@ func (m SettingsModel) View() string {
 
 	if m.state == stateReadOnly {
 		b.WriteString(styles.Title.Render("Settings") + "\n")
-		b.WriteString(styles.Hint.Render("Press 'e' to edit") + "\n\n")
+		b.WriteString(styles.Hint.Render("Press 'e' to edit") + "\n")
 	} else {
 		b.WriteString(styles.Title.Render("Settings [EDIT MODE]") + "\n\n")
 	}

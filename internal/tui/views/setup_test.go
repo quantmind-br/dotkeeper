@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // TestNewSetup tests the NewSetup constructor
@@ -151,7 +152,7 @@ func TestSetupAddFiles(t *testing.T) {
 	if len(model.addedFiles) != 1 {
 		t.Errorf("Expected 1 added file, got %d", len(model.addedFiles))
 	}
-	expectedPath := expandHome("~/.bashrc")
+	expectedPath := pathutil.ExpandHome("~/.bashrc")
 	if model.addedFiles[0] != expectedPath {
 		t.Errorf("Expected first file to be %q, got %q", expectedPath, model.addedFiles[0])
 	}
@@ -167,7 +168,7 @@ func TestSetupAddFiles(t *testing.T) {
 	if len(model.addedFiles) != 2 {
 		t.Errorf("Expected 2 added files, got %d", len(model.addedFiles))
 	}
-	expectedPath = expandHome("~/.zshrc")
+	expectedPath = pathutil.ExpandHome("~/.zshrc")
 	if model.addedFiles[1] != expectedPath {
 		t.Errorf("Expected second file to be %q, got %q", expectedPath, model.addedFiles[1])
 	}
@@ -213,7 +214,7 @@ func TestSetupAddFolders(t *testing.T) {
 	if len(model.addedFolders) != 1 {
 		t.Errorf("Expected 1 added folder, got %d", len(model.addedFolders))
 	}
-	expectedFolderPath := expandHome("~/.config")
+	expectedFolderPath := pathutil.ExpandHome("~/.config")
 	if model.addedFolders[0] != expectedFolderPath {
 		t.Errorf("Expected first folder to be %q, got %q", expectedFolderPath, model.addedFolders[0])
 	}
@@ -326,11 +327,11 @@ func TestSetupComplete(t *testing.T) {
 	if savedCfg.GitRemote != "https://github.com/user/dotfiles.git" {
 		t.Errorf("Expected saved GitRemote to be set, got %q", savedCfg.GitRemote)
 	}
-	expectedFile := expandHome("~/.bashrc")
+	expectedFile := pathutil.ExpandHome("~/.bashrc")
 	if len(savedCfg.Files) != 1 || savedCfg.Files[0] != expectedFile {
 		t.Errorf("Expected saved Files to contain %q, got %v", expectedFile, savedCfg.Files)
 	}
-	expectedFolder := expandHome("~/.config")
+	expectedFolder := pathutil.ExpandHome("~/.config")
 	if len(savedCfg.Folders) != 1 || savedCfg.Folders[0] != expectedFolder {
 		t.Errorf("Expected saved Folders to contain %q, got %v", expectedFolder, savedCfg.Folders)
 	}

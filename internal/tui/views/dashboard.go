@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 // DashboardModel represents the dashboard view
@@ -18,7 +19,20 @@ type DashboardModel struct {
 	height     int
 	lastBackup time.Time
 	fileCount  int
+	selected   int
 	err        error
+}
+
+type dashboardAction struct {
+	key    string
+	label  string
+	target string
+}
+
+var dashboardActions = []dashboardAction{
+	{key: "b", label: "Backup", target: "backups"},
+	{key: "r", label: "Restore", target: "restore"},
+	{key: "s", label: "Settings", target: "settings"},
 }
 
 // NewDashboard creates a new dashboard model
@@ -39,6 +53,22 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "left", "up":
+			if m.selected == 0 {
+				m.selected = len(dashboardActions) - 1
+			} else {
+				m.selected--
+			}
+		case "right", "down":
+			m.selected = (m.selected + 1) % len(dashboardActions)
+		case "enter":
+			target := dashboardActions[m.selected].target
+			return m, func() tea.Msg {
+				return DashboardNavigateMsg{Target: target}
+			}
+		}
 	case statusMsg:
 		m.lastBackup = msg.lastBackup
 		m.fileCount = msg.fileCount
@@ -74,18 +104,34 @@ func (m DashboardModel) View() string {
 		statsBlock = lipgloss.JoinVertical(lipgloss.Left, card1, card2)
 	}
 
-	btnBackup := styles.ActionButton.Render(styles.ActionButtonKey.Render("b") + " Backup")
-	btnRestore := styles.ActionButton.Render(styles.ActionButtonKey.Render("r") + " Restore")
-	btnSettings := styles.ActionButton.Render(styles.ActionButtonKey.Render("s") + " Settings")
+	buttonIcons := map[string]string{
+		"b": "󰁯",
+		"r": "󰦛",
+		"s": "",
+	}
+
+	actionButtons := make([]string, 0, len(dashboardActions))
+	for i, action := range dashboardActions {
+		icon := buttonIcons[action.key]
+		label := icon + "  " + action.label
+		shortcut := styles.Help.Render("[" + action.key + "]")
+
+		btnStyle := styles.ButtonNormal
+		if i == m.selected {
+			btnStyle = styles.ButtonSelected
+		}
+		btnContent := btnStyle.Render(label)
+		actionButtons = append(actionButtons, lipgloss.JoinVertical(lipgloss.Center, btnContent, shortcut))
+	}
 
 	var actionsBlock string
 	if m.width >= 60 {
-		actionsBlock = lipgloss.JoinHorizontal(lipgloss.Top, btnBackup, btnRestore, btnSettings)
+		actionsBlock = lipgloss.JoinHorizontal(lipgloss.Top, actionButtons...)
 	} else {
-		actionsBlock = lipgloss.JoinVertical(lipgloss.Left, btnBackup, btnRestore, btnSettings)
+		actionsBlock = lipgloss.JoinVertical(lipgloss.Left, actionButtons...)
 	}
 
-	statusBar := RenderStatusBar(m.width, "", "", "b: backup | r: restore | s: settings")
+	statusBar := RenderStatusBar(m.width, "", "", "←/→: select | enter: open | b/r/s: shortcuts")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		statsBlock,
@@ -106,7 +152,7 @@ func (m DashboardModel) refreshStatus() tea.Cmd {
 		count := len(m.config.Files) + len(m.config.Folders)
 
 		var lastBackup time.Time
-		dir := expandHome(m.config.BackupDir)
+		dir := pathutil.ExpandHome(m.config.BackupDir)
 		backups, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 		if len(backups) > 0 {
 			info, _ := os.Stat(backups[len(backups)-1])
@@ -127,5 +173,7 @@ func (m DashboardModel) HelpBindings() []HelpEntry {
 		{"b", "Go to backups"},
 		{"r", "Go to restore"},
 		{"s", "Go to settings"},
+		{"arrow keys", "Select action"},
+		{"enter", "Open selected action"},
 	}
 }

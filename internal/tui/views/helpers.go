@@ -4,24 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
-
-func expandHome(p string) string {
-	if strings.HasPrefix(p, "~/") || p == "~" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			if p == "~" {
-				return home
-			}
-			return filepath.Join(home, p[2:])
-		}
-	}
-	return p
-}
 
 type PathValidationResult struct {
 	Valid        bool
@@ -35,7 +22,7 @@ type PathValidationResult struct {
 
 func ValidatePath(path string) PathValidationResult {
 	result := PathValidationResult{
-		ExpandedPath: expandHome(path),
+		ExpandedPath: pathutil.ExpandHome(path),
 	}
 
 	// Check if path exists
@@ -119,6 +106,11 @@ type HelpProvider interface {
 }
 
 type RefreshBackupListMsg struct{}
+
+// DashboardNavigateMsg requests navigation from dashboard action buttons.
+type DashboardNavigateMsg struct {
+	Target string
+}
 
 func RenderStatusBar(width int, status string, errMsg string, helpText string) string {
 	styles := DefaultStyles()

@@ -9,9 +9,11 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
 type backupItem struct {
@@ -61,6 +63,8 @@ func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
 	ti.EchoMode = textinput.EchoPassword
 	ti.EchoCharacter = '•'
 	ti.Width = 40
+	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
 	return BackupListModel{
 		config:        cfg,
@@ -76,7 +80,7 @@ func (m BackupListModel) Init() tea.Cmd {
 
 func (m BackupListModel) Refresh() tea.Cmd {
 	return func() tea.Msg {
-		dir := expandHome(m.config.BackupDir)
+		dir := pathutil.ExpandHome(m.config.BackupDir)
 		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 
 		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
@@ -101,7 +105,7 @@ func (m BackupListModel) Refresh() tea.Cmd {
 func (m BackupListModel) runBackup(password string) tea.Cmd {
 	return func() tea.Msg {
 		cfg := m.config
-		cfg.BackupDir = expandHome(cfg.BackupDir)
+		cfg.BackupDir = pathutil.ExpandHome(cfg.BackupDir)
 
 		result, err := backup.Backup(cfg, password)
 		if err != nil {
@@ -113,7 +117,7 @@ func (m BackupListModel) runBackup(password string) tea.Cmd {
 
 func (m BackupListModel) deleteBackup(name string) tea.Cmd {
 	return func() tea.Msg {
-		dir := expandHome(m.config.BackupDir)
+		dir := pathutil.ExpandHome(m.config.BackupDir)
 		encPath := filepath.Join(dir, name+".tar.gz.enc")
 		metaPath := encPath + ".meta.json"
 

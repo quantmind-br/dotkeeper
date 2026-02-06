@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/restore"
 )
 
@@ -100,6 +101,8 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	ti.EchoMode = textinput.EchoPassword
 	ti.EchoCharacter = '•'
 	ti.Width = 40
+	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
 	fl := list.New([]list.Item{}, NewListDelegate(), 0, 0)
 	fl.Title = "Files"
@@ -133,7 +136,7 @@ func (m RestoreModel) Refresh() tea.Cmd {
 // refreshBackups scans the backup directory and loads available backups
 func (m RestoreModel) refreshBackups() tea.Cmd {
 	return func() tea.Msg {
-		dir := expandHome(m.config.BackupDir)
+		dir := pathutil.ExpandHome(m.config.BackupDir)
 		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 
 		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
@@ -339,7 +342,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				if item := m.backupList.SelectedItem(); item != nil {
 					selected := item.(backupItem)
-					backupPath := filepath.Join(expandHome(m.config.BackupDir), selected.name+".tar.gz.enc")
+					backupPath := filepath.Join(pathutil.ExpandHome(m.config.BackupDir), selected.name+".tar.gz.enc")
 					m.selectedBackup = backupPath
 					m.passwordInput.SetValue("")
 					m.restoreError = ""
@@ -508,11 +511,9 @@ func (m RestoreModel) View() string {
 		s.WriteString(styles.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
-		viewportStyle := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#7D56F4")).
+		viewportStyle := styles.ViewportBorder.Copy().
 			Width(m.width - 4).
-			Height(m.height - 10)
+			Height(m.height - ViewChromeHeight - 4)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
 		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, "j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
