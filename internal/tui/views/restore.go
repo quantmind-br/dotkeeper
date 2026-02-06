@@ -522,137 +522,154 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// View renders the restore view
-func (m RestoreModel) View() string {
+// renderBackupList renders the backup list selection phase
+func (m RestoreModel) renderBackupList() string {
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nLoading backups...",
+		)
+	}
 	var s strings.Builder
+	s.WriteString(m.backupList.View())
+	s.WriteString("\n")
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	return s.String()
+}
 
+// renderPassword renders the password entry phase
+func (m RestoreModel) renderPassword() string {
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nValidating password...",
+		)
+	}
 	st := styles.DefaultStyles()
+	var s strings.Builder
+	s.WriteString(st.Title.Render("Enter Password") + "\n\n")
+	s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
+	s.WriteString(m.passwordInput.View() + "\n\n")
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	return s.String()
+}
 
-	// Phase 0: Backup list selection
-	if m.phase == phaseBackupList {
-		if m.loading {
-			return lipgloss.JoinVertical(lipgloss.Center,
-				"\n",
-				m.spinner.View(),
-				"\nLoading backups...",
-			)
-		}
-		s.WriteString(m.backupList.View())
-		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
-		return s.String()
-	}
-
-	// Phase 1: Password entry
-	if m.phase == phasePassword {
-		if m.loading {
-			return lipgloss.JoinVertical(lipgloss.Center,
-				"\n",
-				m.spinner.View(),
-				"\nValidating password...",
-			)
-		}
-		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
-		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
-		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
-		return s.String()
-	}
-
-	// Phase 2: File selection
-	if m.phase == phaseFileSelect {
-		if m.loading {
-			return lipgloss.JoinVertical(lipgloss.Center,
-				"\n",
-				m.spinner.View(),
-				"\n"+m.restoreStatus+"...",
-			)
-		}
-		s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
-
-		selectedCount := m.countSelectedFiles()
-		totalCount := len(m.selectedFiles)
-		s.WriteString(st.Value.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
-
-		s.WriteString(m.fileList.View())
-		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
-		return s.String()
-	}
-
-	// Phase 3: Restoring
-	if m.phase == phaseRestoring {
+// renderFileSelect renders the file selection phase
+func (m RestoreModel) renderFileSelect() string {
+	if m.loading {
 		return lipgloss.JoinVertical(lipgloss.Center,
 			"\n",
 			m.spinner.View(),
 			"\n"+m.restoreStatus+"...",
 		)
 	}
+	st := styles.DefaultStyles()
+	var s strings.Builder
+	s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
 
-	// Phase 4: Diff preview
-	if m.phase == phaseDiffPreview {
-		if m.loading {
-			return lipgloss.JoinVertical(lipgloss.Center,
-				"\n",
-				m.spinner.View(),
-				"\nLoading diff...",
-			)
-		}
-		s.WriteString(st.Title.Render("Diff Preview") + "\n")
-		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
+	selectedCount := m.countSelectedFiles()
+	totalCount := len(m.selectedFiles)
+	s.WriteString(st.Value.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
 
-		// Use viewport dimensions directly (already account for border in Update())
-		viewportStyle := st.ViewportBorder.Copy().
-			Width(m.viewport.Width).
-			Height(m.viewport.Height)
+	s.WriteString(m.fileList.View())
+	s.WriteString("\n")
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
+	return s.String()
+}
 
-		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, "", m.restoreError, ""))
-		return s.String()
+// renderRestoring renders the restoring in progress phase
+func (m RestoreModel) renderRestoring() string {
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"\n",
+		m.spinner.View(),
+		"\n"+m.restoreStatus+"...",
+	)
+}
+
+// renderDiffPreview renders the diff preview phase
+func (m RestoreModel) renderDiffPreview() string {
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nLoading diff...",
+		)
 	}
+	st := styles.DefaultStyles()
+	var s strings.Builder
+	s.WriteString(st.Title.Render("Diff Preview") + "\n")
+	s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
-	// Phase 5: Results
-	if m.phase == phaseResults {
-		s.WriteString(st.Title.Render("Restore Complete") + "\n\n")
+	// Use viewport dimensions directly (already account for border in Update())
+	viewportStyle := st.ViewportBorder.Copy().
+		Width(m.viewport.Width).
+		Height(m.viewport.Height)
 
-		if m.restoreError != "" {
-			s.WriteString(st.Error.Render(m.restoreError) + "\n\n")
-		} else if m.restoreResult != nil {
-			s.WriteString(st.Success.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
+	s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
+	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.restoreError, ""))
+	return s.String()
+}
 
-			if len(m.restoreResult.BackupFiles) > 0 {
-				s.WriteString(fmt.Sprintf("  %d .bak files created\n", len(m.restoreResult.BackupFiles)))
+// renderResults renders the results display phase
+func (m RestoreModel) renderResults() string {
+	st := styles.DefaultStyles()
+	var s strings.Builder
+	s.WriteString(st.Title.Render("Restore Complete") + "\n\n")
+
+	if m.restoreError != "" {
+		s.WriteString(st.Error.Render(m.restoreError) + "\n\n")
+	} else if m.restoreResult != nil {
+		s.WriteString(st.Success.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
+
+		if len(m.restoreResult.BackupFiles) > 0 {
+			s.WriteString(fmt.Sprintf("  %d .bak files created\n", len(m.restoreResult.BackupFiles)))
+		}
+		if m.restoreResult.FilesSkipped > 0 {
+			s.WriteString(fmt.Sprintf("  %d files skipped\n", m.restoreResult.FilesSkipped))
+		}
+
+		s.WriteString("\n")
+
+		if len(m.restoreResult.RestoredFiles) > 0 {
+			s.WriteString("Restored files:\n")
+			for _, f := range m.restoreResult.RestoredFiles {
+				s.WriteString(fmt.Sprintf("  • %s\n", f))
 			}
-			if m.restoreResult.FilesSkipped > 0 {
-				s.WriteString(fmt.Sprintf("  %d files skipped\n", m.restoreResult.FilesSkipped))
-			}
-
 			s.WriteString("\n")
-
-			if len(m.restoreResult.RestoredFiles) > 0 {
-				s.WriteString("Restored files:\n")
-				for _, f := range m.restoreResult.RestoredFiles {
-					s.WriteString(fmt.Sprintf("  • %s\n", f))
-				}
-				s.WriteString("\n")
-			}
-
-			if len(m.restoreResult.BackupFiles) > 0 {
-				s.WriteString("Backup files created:\n")
-				for _, f := range m.restoreResult.BackupFiles {
-					s.WriteString(fmt.Sprintf("  • %s\n", f))
-				}
-				s.WriteString("\n")
-			}
 		}
 
-		return s.String()
+		if len(m.restoreResult.BackupFiles) > 0 {
+			s.WriteString("Backup files created:\n")
+			for _, f := range m.restoreResult.BackupFiles {
+				s.WriteString(fmt.Sprintf("  • %s\n", f))
+			}
+			s.WriteString("\n")
+		}
 	}
-
-	s.WriteString(st.Title.Render("Restore") + "\n\n")
-	s.WriteString("Phase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)")
 
 	return s.String()
+}
+
+// View renders the restore view
+func (m RestoreModel) View() string {
+	switch m.phase {
+	case phaseBackupList:
+		return m.renderBackupList()
+	case phasePassword:
+		return m.renderPassword()
+	case phaseFileSelect:
+		return m.renderFileSelect()
+	case phaseRestoring:
+		return m.renderRestoring()
+	case phaseDiffPreview:
+		return m.renderDiffPreview()
+	case phaseResults:
+		return m.renderResults()
+	}
+	st := styles.DefaultStyles()
+	return st.Title.Render("Restore") + "\n\nPhase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)"
 }
 
 func (m RestoreModel) HelpBindings() []HelpEntry {
