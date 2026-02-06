@@ -13,6 +13,8 @@ import (
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
+const dashboardRefreshInterval = 30 * time.Second
+
 // DashboardModel represents the dashboard view
 type DashboardModel struct {
 	ctx         *ProgramContext
@@ -50,7 +52,7 @@ func NewDashboard(ctx *ProgramContext) DashboardModel {
 
 // Init initializes the dashboard
 func (m DashboardModel) Init() tea.Cmd {
-	return tea.Batch(m.refreshStatus(), m.spinner.Tick)
+	return tea.Batch(m.refreshStatus(), m.spinner.Tick, m.scheduleRefresh())
 }
 
 // Update handles messages
@@ -87,6 +89,8 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.totalSize = msg.totalSize
 		m.brokenPaths = msg.brokenPaths
 		m.loading = false
+	case dashboardRefreshTickMsg:
+		return m, tea.Batch(m.refreshStatus(), m.scheduleRefresh())
 	}
 	return m, nil
 }
@@ -181,6 +185,8 @@ type statusMsg struct {
 	brokenPaths int
 }
 
+type dashboardRefreshTickMsg struct{}
+
 func (m *DashboardModel) refreshStatus() tea.Cmd {
 	m.loading = true
 	return func() tea.Msg {
@@ -207,6 +213,12 @@ func (m *DashboardModel) refreshStatus() tea.Cmd {
 			brokenPaths: len(result.BrokenPaths),
 		}
 	}
+}
+
+func (m DashboardModel) scheduleRefresh() tea.Cmd {
+	return tea.Tick(dashboardRefreshInterval, func(time.Time) tea.Msg {
+		return dashboardRefreshTickMsg{}
+	})
 }
 
 func (m *DashboardModel) Refresh() tea.Cmd {
