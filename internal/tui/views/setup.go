@@ -91,6 +91,14 @@ func (m SetupModel) Init() tea.Cmd {
 // Update handles messages
 func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.browsing {
+		// Handle resize even during browsing
+		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			m.width = wsMsg.Width
+			m.height = wsMsg.Height
+			m.filePicker.Height = wsMsg.Height - 8
+			return m, nil
+		}
+
 		var cmd tea.Cmd
 		m.filePicker, cmd = m.filePicker.Update(msg)
 
@@ -127,6 +135,12 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.filePicker.Height = msg.Height - 8
+		pcWidth := msg.Width - 6
+		if pcWidth < 20 {
+			pcWidth = 20
+		}
+		m.pathCompleter.Input.Width = pcWidth
 
 	case presetsDetectedMsg:
 		m.presetFiles = msg.files
