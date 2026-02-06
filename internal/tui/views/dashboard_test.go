@@ -22,7 +22,7 @@ func TestDashboard(t *testing.T) {
 	}
 
 	// Test View initial state
-	view := m.View()
+	view := stripANSI(m.View())
 	if !strings.Contains(view, "Dashboard") {
 		t.Error("View() does not contain 'Dashboard'")
 	}

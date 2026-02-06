@@ -50,7 +50,7 @@ func TestNewBackupList(t *testing.T) {
 	updatedModel, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model = updatedModel.(BackupListModel)
 
-	view := model.View()
+	view := stripANSI(model.View())
 
 	if view == "" {
 		t.Error("View returned empty string")

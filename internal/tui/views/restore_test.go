@@ -14,7 +14,7 @@ import (
 func TestRestore_View(t *testing.T) {
 	cfg := &config.Config{}
 	model := NewRestore(cfg, nil)
-	view := model.View()
+	view := stripANSI(model.View())
 
 	expectedHelp := "↑/↓: navigate"
 
@@ -81,7 +81,7 @@ func TestRestoreBackupListLoad(t *testing.T) {
 	updatedModel, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model = updatedModel.(RestoreModel)
 
-	view := model.View()
+	view := stripANSI(model.View())
 
 	if !strings.Contains(view, "backup-20231026-100000") {
 		t.Error("View should contain first backup")
