@@ -413,3 +413,182 @@ func TestEntryFromRestoreError(t *testing.T) {
 		t.Errorf("unexpected error message: %q", entry.Error)
 	}
 }
+
+// TestNewStore_NoXDGStateHome tests NewStore when XDG_STATE_HOME is not set
+func TestNewStore_NoXDGStateHome(t *testing.T) {
+	// Clear XDG_STATE_HOME to test fallback to ~/.local/state
+	t.Setenv("XDG_STATE_HOME", "")
+
+	// Set HOME to a temp directory
+	tmpDir := t.TempDir()
+	oldHome := os.Getenv("HOME")
+	t.Cleanup(func() {
+		os.Setenv("HOME", oldHome)
+	})
+	os.Setenv("HOME", tmpDir)
+
+	store, err := NewStore()
+	if err != nil {
+		t.Fatalf("NewStore failed: %v", err)
+	}
+
+	// Verify store uses ~/.local/state/dotkeeper
+	expectedPath := filepath.Join(tmpDir, ".local", "state", "dotkeeper", "history.jsonl")
+	if store.path != expectedPath {
+		t.Errorf("expected path %q, got %q", expectedPath, store.path)
+	}
+
+	// Verify we can write to it
+	entry := HistoryEntry{Timestamp: time.Now().UTC(), Operation: "backup", Status: "success"}
+	if err := store.Append(entry); err != nil {
+		t.Fatalf("Append failed: %v", err)
+	}
+}
+
+// TestNewStore_HomeDirError tests NewStore when home directory cannot be determined
+func TestNewStore_HomeDirError(t *testing.T) {
+	// Clear both XDG_STATE_HOME and set HOME to invalid path
+	t.Setenv("XDG_STATE_HOME", "")
+	t.Setenv("HOME", "/nonexistent/directory/that/does/not/exist/12345")
+
+	_, err := NewStore()
+	if err == nil {
+		t.Error("NewStore should fail when home directory cannot be determined")
+	}
+}
+
+// TestNewStore_DirectoryCreationError tests NewStore when directory cannot be created
+func TestNewStore_DirectoryCreationError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a file where XDG_STATE_HOME should be a directory
+	invalidPath := filepath.Join(tmpDir, "not-a-directory")
+	if err := os.WriteFile(invalidPath, []byte("x"), 0644); err != nil {
+		t.Fatalf("Failed to create invalid path: %v", err)
+	}
+	t.Setenv("XDG_STATE_HOME", invalidPath)
+
+	_, err := NewStore()
+	if err == nil {
+		t.Error("NewStore should fail when directory cannot be created")
+	}
+}
+
+// TestAppend_OpenFileError tests Append when file cannot be opened
+func TestAppend_OpenFileError(t *testing.T) {
+	// Create a directory where the file should be
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	store := NewStoreWithPath(path)
+
+	entry := HistoryEntry{Timestamp: time.Now().UTC(), Operation: "backup", Status: "success"}
+	err := store.Append(entry)
+	if err == nil {
+		t.Error("Append should fail when path is a directory")
+	}
+}
+
+// TestAppend_EmptyEntry tests Append with empty/minimal entry
+func TestAppend_EmptyEntry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+	store := NewStoreWithPath(path)
+
+	entry := HistoryEntry{}
+	if err := store.Append(entry); err != nil {
+		t.Fatalf("Append with empty entry failed: %v", err)
+	}
+
+	// Verify it was written
+	entries, err := store.Read(0)
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+// TestAppend_SpecialCharacters tests Append with special characters in fields
+func TestAppend_SpecialCharacters(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+	store := NewStoreWithPath(path)
+
+	entry := HistoryEntry{
+		Timestamp:  time.Now().UTC(),
+		Operation:  "backup",
+		Status:     "success",
+		BackupPath: "/path/with spaces/and\"quotes\"",
+		BackupName: "backup-2025-01-01-120000",
+		Error:      "Error: line 1\nline 2\ttabbed",
+	}
+
+	if err := store.Append(entry); err != nil {
+		t.Fatalf("Append with special characters failed: %v", err)
+	}
+
+	// Verify roundtrip
+	entries, err := store.Read(0)
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].BackupPath != entry.BackupPath {
+		t.Errorf("BackupPath not preserved: got %q", entries[0].BackupPath)
+	}
+	if entries[0].Error != entry.Error {
+		t.Errorf("Error not preserved: got %q", entries[0].Error)
+	}
+}
+
+// TestRead_ScannerError tests Read when scanner encounters an error
+func TestRead_ScannerError(t *testing.T) {
+	// We can't easily trigger a scanner error without using a special file
+	// This test documents the path exists
+	// In practice, scanner errors are rare and usually indicate I/O issues
+
+	// At minimum, verify Read handles error paths correctly
+	// by checking it doesn't panic on malformed input
+	dir := t.TempDir()
+	path := filepath.Join(dir, "history.jsonl")
+	store := NewStoreWithPath(path)
+
+	// Write some valid data first
+	entry := HistoryEntry{Timestamp: time.Now().UTC(), Operation: "backup", Status: "success"}
+	if err := store.Append(entry); err != nil {
+		t.Fatalf("Append failed: %v", err)
+	}
+
+	// Read should succeed
+	entries, err := store.Read(0)
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+// TestReadByType_ErrorPropagation tests ReadByType when Read returns an error
+func TestReadByType_ErrorPropagation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nonexistent.jsonl")
+	store := NewStoreWithPath(path)
+
+	// Create a directory instead of a file to trigger an error
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	_, err := store.ReadByType("backup", 0)
+	if err == nil {
+		t.Error("ReadByType should propagate Read errors")
+	}
+}

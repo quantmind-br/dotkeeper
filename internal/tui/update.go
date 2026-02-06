@@ -38,7 +38,7 @@ func DefaultKeyMap() KeyMap {
 
 var keys = DefaultKeyMap()
 
-func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
+func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 	viewWidth := msg.Width
 	if viewWidth < 0 {
 		viewWidth = 0
@@ -53,22 +53,30 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
 	}
 
 	var tm tea.Model
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
-	// Commands intentionally discarded — window resize produces no async work in our views.
-	tm, _ = m.dashboard.Update(viewMsg)
+	tm, cmd = m.dashboard.Update(viewMsg)
 	m.dashboard = tm.(views.DashboardModel)
+	cmds = append(cmds, cmd)
 
-	tm, _ = m.backupList.Update(viewMsg)
+	tm, cmd = m.backupList.Update(viewMsg)
 	m.backupList = tm.(views.BackupListModel)
+	cmds = append(cmds, cmd)
 
-	tm, _ = m.restore.Update(viewMsg)
+	tm, cmd = m.restore.Update(viewMsg)
 	m.restore = tm.(views.RestoreModel)
+	cmds = append(cmds, cmd)
 
-	tm, _ = m.settings.Update(viewMsg)
+	tm, cmd = m.settings.Update(viewMsg)
 	m.settings = tm.(views.SettingsModel)
+	cmds = append(cmds, cmd)
 
-	tm, _ = m.logs.Update(viewMsg)
+	tm, cmd = m.logs.Update(viewMsg)
 	m.logs = tm.(views.LogsModel)
+	cmds = append(cmds, cmd)
+
+	return tea.Batch(cmds...)
 }
 
 // refreshCmdForState returns the refresh command for a given view state.
@@ -103,14 +111,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cfg = cfg
 			store, _ := history.NewStore()
 			m.history = store
-			m.dashboard = views.NewDashboard(cfg)
-			m.backupList = views.NewBackupList(cfg, store)
-			m.restore = views.NewRestore(cfg, store)
-			m.settings = views.NewSettings(cfg)
-			m.logs = views.NewLogs(cfg, store)
+			m.ctx = views.NewProgramContext(cfg, store)
+			m.dashboard = views.NewDashboard(m.ctx)
+			m.backupList = views.NewBackupList(m.ctx)
+			m.restore = views.NewRestore(m.ctx)
+			m.settings = views.NewSettings(m.ctx)
+			m.logs = views.NewLogs(m.ctx)
 			m.state = DashboardView
 			if m.width > 0 && m.height > 0 {
-				m.propagateWindowSize(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+				return m, m.propagateWindowSize(tea.WindowSizeMsg{Width: m.width, Height: m.height})
 			}
 			return m, nil
 		default:
@@ -125,8 +134,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.propagateWindowSize(msg)
-		return m, nil
+		return m, m.propagateWindowSize(msg)
 
 	case views.RefreshBackupListMsg:
 		cmd = m.backupList.Refresh()

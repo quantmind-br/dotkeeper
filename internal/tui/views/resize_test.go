@@ -35,7 +35,7 @@ func TestAllViewsNoPanicOnResize_Dashboard(t *testing.T) {
 	cfg := testCfg()
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewDashboard(cfg)
+			m := NewDashboard(NewProgramContext(cfg, nil))
 			model, _ := m.Update(size)
 			dm := model.(DashboardModel)
 			_ = dm.View()
@@ -47,7 +47,7 @@ func TestAllViewsNoPanicOnResize_BackupList(t *testing.T) {
 	cfg := testCfg()
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewBackupList(cfg, nil)
+			m := NewBackupList(NewProgramContext(cfg, nil))
 			model, _ := m.Update(size)
 			bm := model.(BackupListModel)
 			_ = bm.View()
@@ -59,7 +59,7 @@ func TestAllViewsNoPanicOnResize_Restore(t *testing.T) {
 	cfg := testCfg()
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewRestore(cfg, nil)
+			m := NewRestore(NewProgramContext(cfg, nil))
 			model, _ := m.Update(size)
 			rm := model.(RestoreModel)
 			_ = rm.View()
@@ -71,7 +71,7 @@ func TestAllViewsNoPanicOnResize_Settings(t *testing.T) {
 	cfg := testCfg()
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewSettings(cfg)
+			m := NewSettings(NewProgramContext(cfg, nil))
 			model, _ := m.Update(size)
 			sm := model.(SettingsModel)
 			_ = sm.View()
@@ -83,7 +83,7 @@ func TestAllViewsNoPanicOnResize_Logs(t *testing.T) {
 	cfg := testCfg()
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewLogs(cfg)
+			m := NewLogs(NewProgramContext(cfg, nil))
 			model, _ := m.Update(size)
 			lm := model.(LogsModel)
 			_ = lm.View()
@@ -94,7 +94,7 @@ func TestAllViewsNoPanicOnResize_Logs(t *testing.T) {
 func TestAllViewsNoPanicOnResize_Setup(t *testing.T) {
 	for _, size := range resizeTestSizes {
 		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
-			m := NewSetup()
+			m := NewSetup(NewProgramContext(testCfg(), nil))
 			model, _ := m.Update(size)
 			sm := model.(SetupModel)
 			_ = sm.View()
@@ -108,7 +108,7 @@ func TestDashboardResponsiveLayout(t *testing.T) {
 	cfg := testCfg()
 
 	// Wide layout (horizontal cards): width >= BreakpointWide (80)
-	m := NewDashboard(cfg)
+	m := NewDashboard(NewProgramContext(cfg, nil))
 	m.fileCount = 2
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	dm := model.(DashboardModel)
@@ -132,7 +132,7 @@ func TestDashboardResponsiveButtons(t *testing.T) {
 	cfg := testCfg()
 
 	// Wide: buttons should be horizontal
-	m := NewDashboard(cfg)
+	m := NewDashboard(NewProgramContext(cfg, nil))
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	dm := model.(DashboardModel)
 	wideView := stripANSI(dm.View())
@@ -157,7 +157,7 @@ func TestDashboardResponsiveButtons(t *testing.T) {
 
 func TestSetupMinTerminalSizeWarning(t *testing.T) {
 	// Below minimum — should show warning
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 35, Height: 10})
 	sm := model.(SetupModel)
 	view := sm.View()
@@ -188,7 +188,7 @@ func TestSetupMinTerminalSizeWarning(t *testing.T) {
 
 func TestSetupMinSizeGuardOnZeroDimensions(t *testing.T) {
 	// At init (0x0), guard should prevent showing warning
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 	view := m.View()
 	if strings.Contains(view, "Terminal too small") {
 		t.Error("should not show 'Terminal too small' at initial 0x0 (guard condition)")
@@ -196,7 +196,7 @@ func TestSetupMinSizeGuardOnZeroDimensions(t *testing.T) {
 }
 
 func TestSetupMinSizeShowsCurrentDimensions(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 30, Height: 12})
 	sm := model.(SetupModel)
 	view := sm.View()
@@ -209,7 +209,7 @@ func TestSetupMinSizeShowsCurrentDimensions(t *testing.T) {
 
 func TestRapidResizeSequence_Dashboard(t *testing.T) {
 	cfg := testCfg()
-	m := NewDashboard(cfg)
+	m := NewDashboard(NewProgramContext(cfg, nil))
 
 	sizes := []tea.WindowSizeMsg{
 		{Width: 80, Height: 24},
@@ -236,17 +236,17 @@ func TestRapidResizeSequence_Dashboard(t *testing.T) {
 	}
 
 	// Final dimensions should match last size
-	if dm.width != 150 {
-		t.Errorf("expected final width 150, got %d", dm.width)
+	if dm.ctx.Width != 150 {
+		t.Errorf("expected final width 150, got %d", dm.ctx.Width)
 	}
-	if dm.height != 60 {
-		t.Errorf("expected final height 60, got %d", dm.height)
+	if dm.ctx.Height != 60 {
+		t.Errorf("expected final height 60, got %d", dm.ctx.Height)
 	}
 }
 
 func TestRapidResizeSequence_Restore(t *testing.T) {
 	cfg := testCfg()
-	m := NewRestore(cfg, nil)
+	m := NewRestore(NewProgramContext(cfg, nil))
 
 	sizes := []tea.WindowSizeMsg{
 		{Width: 80, Height: 24},
@@ -271,17 +271,17 @@ func TestRapidResizeSequence_Restore(t *testing.T) {
 	if view == "" {
 		t.Error("view should not be empty after rapid resize")
 	}
-	if rm.width != 150 {
-		t.Errorf("expected final width 150, got %d", rm.width)
+	if rm.ctx.Width != 150 {
+		t.Errorf("expected final width 150, got %d", rm.ctx.Width)
 	}
-	if rm.height != 60 {
-		t.Errorf("expected final height 60, got %d", rm.height)
+	if rm.ctx.Height != 60 {
+		t.Errorf("expected final height 60, got %d", rm.ctx.Height)
 	}
 }
 
 func TestRapidResizeSequence_Settings(t *testing.T) {
 	cfg := testCfg()
-	m := NewSettings(cfg)
+	m := NewSettings(NewProgramContext(cfg, nil))
 
 	sizes := []tea.WindowSizeMsg{
 		{Width: 80, Height: 24},
@@ -309,7 +309,7 @@ func TestRapidResizeSequence_Settings(t *testing.T) {
 }
 
 func TestRapidResizeSequence_Setup(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 
 	sizes := []tea.WindowSizeMsg{
 		{Width: 80, Height: 24},
@@ -334,18 +334,18 @@ func TestRapidResizeSequence_Setup(t *testing.T) {
 	if view == "" {
 		t.Error("view should not be empty after rapid resize")
 	}
-	if sm.width != 150 {
-		t.Errorf("expected final width 150, got %d", sm.width)
+	if sm.ctx.Width != 150 {
+		t.Errorf("expected final width 150, got %d", sm.ctx.Width)
 	}
-	if sm.height != 60 {
-		t.Errorf("expected final height 60, got %d", sm.height)
+	if sm.ctx.Height != 60 {
+		t.Errorf("expected final height 60, got %d", sm.ctx.Height)
 	}
 }
 
 // --- E: Setup Filepicker Resize ---
 
 func TestSetupFilepickerResize(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 
 	// Send initial resize
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
@@ -379,7 +379,7 @@ func TestSetupFilepickerResize(t *testing.T) {
 }
 
 func TestSetupFilepickerResizeInBrowsingMode(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 
 	// Navigate to AddFiles step
 	m = navigateToAddFiles(m)
@@ -415,7 +415,7 @@ func TestSetupFilepickerResizeInBrowsingMode(t *testing.T) {
 
 func TestDashboardZeroSizeDoesNotPanic(t *testing.T) {
 	cfg := testCfg()
-	m := NewDashboard(cfg)
+	m := NewDashboard(NewProgramContext(cfg, nil))
 
 	// Resize to zero
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 0, Height: 0})
@@ -428,7 +428,7 @@ func TestDashboardZeroSizeDoesNotPanic(t *testing.T) {
 
 func TestRestoreViewportAtExtremeSize(t *testing.T) {
 	cfg := testCfg()
-	m := NewRestore(cfg, nil)
+	m := NewRestore(NewProgramContext(cfg, nil))
 
 	// Set to diff preview phase with some content
 	m.phase = phaseDiffPreview
@@ -456,7 +456,7 @@ func TestRestoreViewportAtExtremeSize(t *testing.T) {
 
 func TestSettingsResizePreservesState(t *testing.T) {
 	cfg := testCfg()
-	m := NewSettings(cfg)
+	m := NewSettings(NewProgramContext(cfg, nil))
 
 	// Set an initial size
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -475,31 +475,31 @@ func TestSettingsResizePreservesState(t *testing.T) {
 
 func TestLogsResizeUpdatesListDimensions(t *testing.T) {
 	cfg := testCfg()
-	m := NewLogs(cfg)
+	m := NewLogs(NewProgramContext(cfg, nil))
 
 	// Set to standard size
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	lm := model.(LogsModel)
-	if lm.width != 80 {
-		t.Errorf("expected width 80, got %d", lm.width)
+	if lm.ctx.Width != 80 {
+		t.Errorf("expected width 80, got %d", lm.ctx.Width)
 	}
-	if lm.height != 24 {
-		t.Errorf("expected height 24, got %d", lm.height)
+	if lm.ctx.Height != 24 {
+		t.Errorf("expected height 24, got %d", lm.ctx.Height)
 	}
 
 	// Resize to large
 	model, _ = lm.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
 	lm = model.(LogsModel)
-	if lm.width != 200 {
-		t.Errorf("expected width 200, got %d", lm.width)
+	if lm.ctx.Width != 200 {
+		t.Errorf("expected width 200, got %d", lm.ctx.Width)
 	}
-	if lm.height != 100 {
-		t.Errorf("expected height 100, got %d", lm.height)
+	if lm.ctx.Height != 100 {
+		t.Errorf("expected height 100, got %d", lm.ctx.Height)
 	}
 }
 
 func TestSetupBrowseResizeUpdatesPathCompleterWidth(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	sm := model.(SetupModel)
@@ -519,7 +519,7 @@ func TestSetupBrowseResizeUpdatesPathCompleterWidth(t *testing.T) {
 }
 
 func TestSetupTinyResizeClampsFilepickerHeight(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 3})
 	sm := model.(SetupModel)
@@ -537,7 +537,7 @@ func TestSetupTinyResizeClampsFilepickerHeight(t *testing.T) {
 }
 
 func TestSetupBrowseTinyResizeClampsFilepickerHeight(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(testCfg(), nil))
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	sm := model.(SetupModel)
 	sm.browsing = true

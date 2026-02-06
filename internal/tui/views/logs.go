@@ -7,18 +7,14 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // LogsModel represents the logs view
 type LogsModel struct {
-	config *config.Config
-	store  *history.Store
+	ctx    *ProgramContext
 	list   list.Model
-	width  int
-	height int
 	filter string // "all", "backup", "restore"
 	err    string
 }
@@ -63,20 +59,12 @@ func formatBytes(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// NewLogs creates a new logs model
-// Accepts optional store for backward compatibility with existing model.go
-// until Task 4 updates the call site.
-func NewLogs(cfg *config.Config, stores ...*history.Store) LogsModel {
-	var store *history.Store
-	if len(stores) > 0 {
-		store = stores[0]
-	}
-
+// NewLogs creates a new logs model.
+func NewLogs(ctx *ProgramContext) LogsModel {
 	l := styles.NewMinimalList()
 
 	return LogsModel{
-		config: cfg,
-		store:  store,
+		ctx:    ensureProgramContext(ctx),
 		list:   l,
 		filter: "all",
 	}
@@ -89,7 +77,7 @@ func (m LogsModel) Init() tea.Cmd {
 
 // LoadHistory loads history from the store. Exported for cross-view refresh.
 func (m LogsModel) LoadHistory() tea.Cmd {
-	if m.store == nil {
+	if m.ctx.Store == nil {
 		return nil
 	}
 
@@ -98,9 +86,9 @@ func (m LogsModel) LoadHistory() tea.Cmd {
 		var err error
 
 		if m.filter == "all" {
-			entries, err = m.store.Read(100)
+			entries, err = m.ctx.Store.Read(100)
 		} else {
-			entries, err = m.store.ReadByType(m.filter, 100)
+			entries, err = m.ctx.Store.ReadByType(m.filter, 100)
 		}
 
 		if err != nil {
@@ -117,8 +105,8 @@ type logsErrorMsg struct{ err error }
 func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.ctx.Width = msg.Width
+		m.ctx.Height = msg.Height
 		// Adjust list size. Reserve space for chrome
 		m.list.SetSize(msg.Width, msg.Height)
 
@@ -190,7 +178,7 @@ func (m LogsModel) View() string {
 		s.WriteString(m.list.View())
 	}
 
-	s.WriteString(RenderStatusBar(m.width, "", m.err, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, "", m.err, ""))
 
 	return s.String()
 }

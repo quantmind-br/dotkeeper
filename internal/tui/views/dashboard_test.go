@@ -14,9 +14,9 @@ func TestDashboard(t *testing.T) {
 		Files:     []string{"file1", "file2"},
 	}
 
-	m := NewDashboard(cfg)
-	m.width = 80
-	m.height = 24
+	m := NewDashboard(NewProgramContext(cfg, nil))
+	m.ctx.Width = 80
+	m.ctx.Height = 24
 	m.fileCount = 2
 
 	cmd := m.Init()
@@ -43,7 +43,7 @@ func TestDashboard(t *testing.T) {
 		t.Error("View() missing 'Settings' button")
 	}
 
-	m.width = 40
+	m.ctx.Width = 40
 	viewNarrow := stripANSI(m.View())
 
 	if !strings.Contains(viewNarrow, "Last Backup") {
@@ -56,7 +56,7 @@ func TestDashboard(t *testing.T) {
 
 func TestDashboardArrowSelectionAndEnter(t *testing.T) {
 	cfg := &config.Config{BackupDir: "/tmp/backup"}
-	m := NewDashboard(cfg)
+	m := NewDashboard(NewProgramContext(cfg, nil))
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m = updated.(DashboardModel)
@@ -89,5 +89,20 @@ func TestDashboardArrowSelectionAndEnter(t *testing.T) {
 	}
 	if nav.Target != "settings" {
 		t.Fatalf("enter target: got %q, want %q", nav.Target, "settings")
+	}
+}
+
+func TestDashboardHelpBindings(t *testing.T) {
+	cfg := &config.Config{BackupDir: "/tmp/backup"}
+	m := NewDashboard(NewProgramContext(cfg, nil))
+
+	help := m.HelpBindings()
+	if help == nil {
+		t.Error("HelpBindings should not return nil")
+	}
+
+	// Just verify we have some help entries
+	if len(help) == 0 {
+		t.Error("HelpBindings should return at least one entry")
 	}
 }

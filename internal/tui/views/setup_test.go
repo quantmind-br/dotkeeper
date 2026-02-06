@@ -11,12 +11,12 @@ import (
 
 // TestNewSetup tests the NewSetup constructor
 func TestNewSetup(t *testing.T) {
-	m := NewSetup()
+	m := NewSetup(NewProgramContext(nil, nil))
 
 	if m.step != StepWelcome {
 		t.Errorf("Expected initial step to be StepWelcome, got %d", m.step)
 	}
-	if m.config == nil {
+	if m.ctx.Config == nil {
 		t.Error("Expected config to be initialized, got nil")
 	}
 	if m.pathCompleter.Input.Value() != "" {
@@ -26,7 +26,7 @@ func TestNewSetup(t *testing.T) {
 
 // TestSetupStepProgression tests advancing through setup steps with Enter key
 func TestSetupStepProgression(t *testing.T) {
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 
 	// Step 1: Welcome -> BackupDir
 	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -100,7 +100,7 @@ func TestSetupStepProgression(t *testing.T) {
 
 // TestSetupPresetToggle tests toggling presets with Space key
 func TestSetupPresetToggle(t *testing.T) {
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 	model.step = StepPresetFiles
 	model.presetFiles = []pathutil.DotfilePreset{
 		{Path: "~/.bashrc", Selected: false},
@@ -146,7 +146,7 @@ func navigateToAddFiles(model SetupModel) SetupModel {
 }
 
 func TestSetupAddFiles(t *testing.T) {
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 	model = navigateToAddFiles(model)
 
 	if model.step != StepAddFiles {
@@ -170,7 +170,7 @@ func TestSetupComplete(t *testing.T) {
 	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
 	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, ".config"))
 
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 	model = navigateToAddFiles(model)
 
 	// Skip AddFiles
@@ -201,7 +201,7 @@ func TestSetupComplete(t *testing.T) {
 }
 
 func TestSetupStepRegression(t *testing.T) {
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 
 	// Advance
 	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -216,7 +216,7 @@ func TestSetupStepRegression(t *testing.T) {
 }
 
 func TestSetupBrowseMode(t *testing.T) {
-	model := NewSetup()
+	model := NewSetup(NewProgramContext(nil, nil))
 	model = navigateToAddFiles(model)
 
 	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})

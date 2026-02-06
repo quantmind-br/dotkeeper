@@ -13,18 +13,18 @@ import (
 
 func TestRestore_View(t *testing.T) {
 	cfg := &config.Config{}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 	view := stripANSI(model.View())
-
-	expectedHelp := "↑/↓: navigate"
-
-	if !strings.Contains(view, expectedHelp) {
-		t.Errorf("Expected view to contain help text %q, but got:\n%s", expectedHelp, view)
-	}
 
 	// Verify phase 0 is rendered (backup list view)
 	if !strings.Contains(view, "No items") {
 		t.Errorf("Expected view to show empty backup list, but got:\n%s", view)
+	}
+
+	// StatusHelpText is separate from View()
+	helpText := model.StatusHelpText()
+	if !strings.Contains(helpText, "navigate") {
+		t.Errorf("Expected StatusHelpText to contain 'navigate', got: %s", helpText)
 	}
 }
 
@@ -33,7 +33,7 @@ func TestNewRestore(t *testing.T) {
 		BackupDir: "/tmp/test-backups",
 	}
 
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	if model.phase != 0 {
 		t.Errorf("Expected initial phase 0, got %d", model.phase)
@@ -67,7 +67,7 @@ func TestRestoreBackupListLoad(t *testing.T) {
 	}
 
 	cfg := &config.Config{BackupDir: tempDir}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	initCmd := model.Init()
 	if initCmd == nil {
@@ -96,24 +96,24 @@ func TestRestoreBackupListLoad(t *testing.T) {
 
 func TestRestoreModel_Update_WindowSize(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 	updatedModel, _ := model.Update(msg)
 
 	m := updatedModel.(RestoreModel)
 
-	if m.width != 100 {
-		t.Errorf("Expected width 100, got %d", m.width)
+	if m.ctx.Width != 100 {
+		t.Errorf("Expected width 100, got %d", m.ctx.Width)
 	}
-	if m.height != 50 {
-		t.Errorf("Expected height 50, got %d", m.height)
+	if m.ctx.Height != 50 {
+		t.Errorf("Expected height 50, got %d", m.ctx.Height)
 	}
 }
 
 func TestRestoreModel_Phase0_KeyHandling(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	// Test 'r' key triggers refresh
 	updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
@@ -129,7 +129,7 @@ func TestRestoreModel_Phase0_KeyHandling(t *testing.T) {
 
 func TestRestoreModel_SelectedFilesCount(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	model.selectedFiles = map[string]bool{
 		"/path/file1": true,
@@ -145,7 +145,7 @@ func TestRestoreModel_SelectedFilesCount(t *testing.T) {
 
 func TestRestoreModel_GetSelectedFilePaths(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 
 	model.selectedFiles = map[string]bool{
 		"/path/file1": true,
@@ -175,7 +175,7 @@ func TestRestoreModel_GetSelectedFilePaths(t *testing.T) {
 
 func TestRestoreModel_Phase2_ZeroFilesBlocked(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 	model.phase = 2
 	model.selectedFiles = map[string]bool{
 		"/path/file1": false,
@@ -201,7 +201,7 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	cfg := &config.Config{BackupDir: "."}
 
 	// Test ESC in phase 1 returns to phase 0
-	model := NewRestore(cfg, nil)
+	model := NewRestore(NewProgramContext(cfg, nil))
 	model.phase = 1
 	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m := updatedModel.(RestoreModel)
@@ -210,7 +210,7 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	}
 
 	// Test ESC in phase 2 returns to phase 0
-	model = NewRestore(cfg, nil)
+	model = NewRestore(NewProgramContext(cfg, nil))
 	model.phase = 2
 	model.selectedFiles = make(map[string]bool)
 	updatedModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -220,11 +220,199 @@ func TestRestoreModel_ESCNavigation(t *testing.T) {
 	}
 
 	// Test ESC in phase 4 returns to phase 2
-	model = NewRestore(cfg, nil)
+	model = NewRestore(NewProgramContext(cfg, nil))
 	model.phase = 4
 	updatedModel, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = updatedModel.(RestoreModel)
 	if m.phase != 2 {
 		t.Errorf("ESC in phase 4 should return to phase 2, got %d", m.phase)
+	}
+}
+
+func TestRestoreHelpBindings(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewRestore(NewProgramContext(cfg, nil))
+
+	// Test phase 0 help bindings
+	model.phase = 0
+	help := model.HelpBindings()
+	if help == nil {
+		t.Error("HelpBindings should not return nil")
+	}
+
+	// Just verify we have some help entries
+	if len(help) == 0 {
+		t.Error("HelpBindings should return at least one entry")
+	}
+}
+
+func TestRestoreIsInputActive(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewRestore(NewProgramContext(cfg, nil))
+
+	// Only phasePassword (phase 1) should be input active
+	const phasePassword = 1
+
+	// Test phase 0 - not input active
+	model.phase = 0
+	if model.IsInputActive() {
+		t.Error("Phase 0 should not be input active")
+	}
+
+	// Test phase 1 - password input IS active
+	model.phase = phasePassword
+	if !model.IsInputActive() {
+		t.Error("Phase 1 should be input active (password)")
+	}
+
+	// Test phase 2 - file selection (not input)
+	model.phase = 2
+	if model.IsInputActive() {
+		t.Error("Phase 2 should not be input active (file list navigation)")
+	}
+
+	// Test phase 3 - restoring
+	model.phase = 3
+	if model.IsInputActive() {
+		t.Error("Phase 3 should not be input active (restoring)")
+	}
+}
+
+func TestFileItem_Title(t *testing.T) {
+	tests := []struct {
+		name     string
+		selected bool
+		path     string
+		want     string
+	}{
+		{
+			name:     "not selected",
+			selected: false,
+			path:     "/home/user/.bashrc",
+			want:     "[ ] /home/user/.bashrc",
+		},
+		{
+			name:     "selected",
+			selected: true,
+			path:     "/home/user/.bashrc",
+			want:     "[x] /home/user/.bashrc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			item := fileItem{
+				path:     tt.path,
+				selected: tt.selected,
+			}
+			got := item.Title()
+			if got != tt.want {
+				t.Errorf("Title() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFileItem_Description(t *testing.T) {
+	tests := []struct {
+		name string
+		size int64
+		want string
+	}{
+		{
+			name: "zero bytes",
+			size: 0,
+			want: "0 bytes",
+		},
+		{
+			name: "single byte",
+			size: 1,
+			want: "1 bytes",
+		},
+		{
+			name: "kilobyte",
+			size: 1024,
+			want: "1024 bytes",
+		},
+		{
+			name: "megabyte",
+			size: 1024 * 1024,
+			want: "1048576 bytes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			item := fileItem{size: tt.size}
+			got := item.Description()
+			if got != tt.want {
+				t.Errorf("Description() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFileItem_FilterValue(t *testing.T) {
+	path := "/home/user/.config/nvim/init.lua"
+	item := fileItem{path: path}
+
+	got := item.FilterValue()
+	if got != path {
+		t.Errorf("FilterValue() = %q, want %q", got, path)
+	}
+}
+
+func TestRestoreRefresh(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewRestore(NewProgramContext(cfg, nil))
+
+	cmd := model.Refresh()
+	if cmd == nil {
+		t.Error("Refresh() should return a command")
+	}
+}
+
+func TestRestoreModel_StatusHelpText_Phases(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewRestore(NewProgramContext(cfg, nil))
+
+	// Test each phase's help text
+	phases := []restorePhase{
+		phaseBackupList,
+		phasePassword,
+		phaseFileSelect,
+		phaseRestoring,
+		phaseDiffPreview,
+		phaseResults,
+	}
+
+	for _, phase := range phases {
+		model.phase = phase
+		helpText := model.StatusHelpText()
+		if helpText == "" {
+			t.Errorf("Phase %d should have help text", phase)
+		}
+	}
+}
+
+func TestRestoreHelpBindings_Phases(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewRestore(NewProgramContext(cfg, nil))
+
+	// Test each phase's help bindings
+	phases := []restorePhase{
+		phaseBackupList,
+		phasePassword,
+		phaseFileSelect,
+		phaseDiffPreview,
+		phaseResults,
+	}
+
+	for _, phase := range phases {
+		model.phase = phase
+		bindings := model.HelpBindings()
+		if bindings == nil {
+			t.Errorf("Phase %d HelpBindings should not be nil", phase)
+		}
 	}
 }

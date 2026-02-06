@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/restore"
@@ -32,10 +31,7 @@ const (
 
 // RestoreModel represents the restore view
 type RestoreModel struct {
-	config           *config.Config
-	store            *history.Store
-	width            int
-	height           int
+	ctx              *ProgramContext
 	backupList       list.Model
 	phase            restorePhase
 	selectedBackup   string
@@ -103,7 +99,7 @@ func (i fileItem) FilterValue() string {
 }
 
 // NewRestore creates a new restore model
-func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
+func NewRestore(ctx *ProgramContext) RestoreModel {
 	l := styles.NewMinimalList()
 
 	ti := components.NewPasswordInput("Enter password for decryption")
@@ -114,8 +110,7 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	vp := viewport.New(0, 0)
 
 	return RestoreModel{
-		config:        cfg,
-		store:         store,
+		ctx:           ensureProgramContext(ctx),
 		backupList:    l,
 		passwordInput: ti,
 		fileList:      fl,
@@ -138,7 +133,10 @@ func (m RestoreModel) Refresh() tea.Cmd {
 // refreshBackups scans the backup directory and loads available backups
 func (m RestoreModel) refreshBackups() tea.Cmd {
 	return func() tea.Msg {
-		return backupsLoadedMsg(LoadBackupItems(m.config.BackupDir))
+		if m.ctx.Config == nil {
+			return backupsLoadedMsg([]list.Item{})
+		}
+		return backupsLoadedMsg(LoadBackupItems(m.ctx.Config.BackupDir))
 	}
 }
 
@@ -234,7 +232,11 @@ func (m RestoreModel) handleBackupListKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd
 	case "enter":
 		if item := m.backupList.SelectedItem(); item != nil {
 			selected := item.(backupItem)
-			backupPath := filepath.Join(pathutil.ExpandHome(m.config.BackupDir), selected.name+".tar.gz.enc")
+			if m.ctx.Config == nil {
+				m.restoreError = "Missing config"
+				return m, nil
+			}
+			backupPath := filepath.Join(pathutil.ExpandHome(m.ctx.Config.BackupDir), selected.name+".tar.gz.enc")
 			m.selectedBackup = backupPath
 			m.passwordInput.SetValue("")
 			m.restoreError = ""
@@ -368,8 +370,8 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.ctx.Width = msg.Width
+		m.ctx.Height = msg.Height
 		m.backupList.SetSize(msg.Width, msg.Height)
 		m.fileList.SetSize(msg.Width, msg.Height)
 		// Viewport needs to account for its border styling (RoundedBorder adds 1 char on each side)
@@ -456,8 +458,8 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.phase = phaseResults
 		m.restoreStatus = ""
 		m.restoreError = ""
-		if m.store != nil {
-			_ = m.store.Append(history.EntryFromRestoreResult(msg.result, m.selectedBackup))
+		if m.ctx.Store != nil {
+			_ = m.ctx.Store.Append(history.EntryFromRestoreResult(msg.result, m.selectedBackup))
 		}
 		return m, nil
 
@@ -466,8 +468,8 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreResult = nil
 		m.phase = phaseResults
 		m.restoreStatus = ""
-		if m.store != nil {
-			_ = m.store.Append(history.EntryFromRestoreError(msg.err, m.selectedBackup))
+		if m.ctx.Store != nil {
+			_ = m.ctx.Store.Append(history.EntryFromRestoreError(msg.err, m.selectedBackup))
 		}
 		return m, nil
 
@@ -505,7 +507,7 @@ func (m RestoreModel) View() string {
 	if m.phase == phaseBackupList {
 		s.WriteString(m.backupList.View())
 		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -514,7 +516,7 @@ func (m RestoreModel) View() string {
 		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -528,14 +530,14 @@ func (m RestoreModel) View() string {
 
 		s.WriteString(m.fileList.View())
 		s.WriteString("\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
 	// Phase 3: Restoring
 	if m.phase == phaseRestoring {
 		s.WriteString(st.Title.Render("Restoring...") + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
 		return s.String()
 	}
 
@@ -550,7 +552,7 @@ func (m RestoreModel) View() string {
 			Height(m.viewport.Height)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
-		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, "", m.restoreError, ""))
 		return s.String()
 	}
 

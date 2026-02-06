@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/backup"
-	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
@@ -29,11 +28,8 @@ type backupDeletedMsg struct{ name string }
 type backupDeleteErrorMsg struct{ err error }
 
 type BackupListModel struct {
-	config           *config.Config
-	store            *history.Store
+	ctx              *ProgramContext
 	list             list.Model
-	width            int
-	height           int
 	creatingBackup   bool
 	confirmingDelete bool
 	deleteTarget     string
@@ -42,15 +38,14 @@ type BackupListModel struct {
 	backupError      string
 }
 
-func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
+func NewBackupList(ctx *ProgramContext) BackupListModel {
 	l := styles.NewMinimalList()
 
 	ti := components.NewPasswordInput("Enter password for encryption")
 	ti.Width = 40 // Default width, will be adjusted on WindowSizeMsg
 
 	return BackupListModel{
-		config:        cfg,
-		store:         store,
+		ctx:           ensureProgramContext(ctx),
 		list:          l,
 		passwordInput: ti,
 	}
@@ -62,13 +57,19 @@ func (m BackupListModel) Init() tea.Cmd {
 
 func (m BackupListModel) Refresh() tea.Cmd {
 	return func() tea.Msg {
-		return backupsLoadedMsg(LoadBackupItems(m.config.BackupDir))
+		if m.ctx.Config == nil {
+			return backupsLoadedMsg([]list.Item{})
+		}
+		return backupsLoadedMsg(LoadBackupItems(m.ctx.Config.BackupDir))
 	}
 }
 
 func (m BackupListModel) runBackup(password string) tea.Cmd {
 	return func() tea.Msg {
-		cfg := m.config
+		if m.ctx.Config == nil {
+			return BackupErrorMsg{Error: fmt.Errorf("missing config")}
+		}
+		cfg := m.ctx.Config
 		cfg.BackupDir = pathutil.ExpandHome(cfg.BackupDir)
 
 		result, err := backup.Backup(cfg, password)
@@ -81,7 +82,10 @@ func (m BackupListModel) runBackup(password string) tea.Cmd {
 
 func (m BackupListModel) deleteBackup(name string) tea.Cmd {
 	return func() tea.Msg {
-		dir := pathutil.ExpandHome(m.config.BackupDir)
+		if m.ctx.Config == nil {
+			return backupDeleteErrorMsg{err: fmt.Errorf("missing config")}
+		}
+		dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
 		encPath := filepath.Join(dir, name+".tar.gz.enc")
 		metaPath := encPath + ".meta.json"
 
@@ -98,8 +102,8 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.ctx.Width = msg.Width
+		m.ctx.Height = msg.Height
 		m.list.SetSize(msg.Width, msg.Height)
 		// Responsive password input width
 		pw := msg.Width - 6
@@ -120,8 +124,8 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backupStatus = fmt.Sprintf("✓ Backup created: %s (%d files)", msg.Result.BackupName, msg.Result.FileCount)
 		m.backupError = ""
 		m.passwordInput.SetValue("")
-		if m.store != nil {
-			_ = m.store.Append(history.EntryFromBackupResult(msg.Result))
+		if m.ctx.Store != nil {
+			_ = m.ctx.Store.Append(history.EntryFromBackupResult(msg.Result))
 		}
 		return m, m.Refresh()
 
@@ -130,8 +134,8 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backupStatus = ""
 		m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Error)
 		m.passwordInput.SetValue("")
-		if m.store != nil {
-			_ = m.store.Append(history.EntryFromBackupError(msg.Error))
+		if m.ctx.Store != nil {
+			_ = m.ctx.Store.Append(history.EntryFromBackupError(msg.Error))
 		}
 		return m, nil
 
@@ -227,7 +231,7 @@ func (m BackupListModel) View() string {
 		s.WriteString(st.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
-		s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, ""))
+		s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, ""))
 		return s.String()
 	}
 
@@ -235,7 +239,7 @@ func (m BackupListModel) View() string {
 	s.WriteString(m.list.View())
 	s.WriteString("\n")
 
-	s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, ""))
+	s.WriteString(RenderStatusBar(m.ctx.Width, m.backupStatus, m.backupError, ""))
 
 	return s.String()
 }

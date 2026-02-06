@@ -37,7 +37,7 @@ func TestNewBackupList(t *testing.T) {
 		BackupDir: tempDir,
 	}
 
-	model := NewBackupList(cfg, nil)
+	model := NewBackupList(NewProgramContext(cfg, nil))
 
 	initCmd := model.Init()
 	if initCmd == nil {
@@ -79,7 +79,7 @@ func TestBackupListModel_Update(t *testing.T) {
 	cfg := &config.Config{
 		BackupDir: ".",
 	}
-	model := NewBackupList(cfg, nil)
+	model := NewBackupList(NewProgramContext(cfg, nil))
 
 	// Test WindowSizeMsg
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
@@ -94,11 +94,11 @@ func TestBackupListModel_Update(t *testing.T) {
 		t.Fatalf("Update did not return BackupListModel")
 	}
 
-	if m.width != 100 {
-		t.Errorf("Expected width 100, got %d", m.width)
+	if m.ctx.Width != 100 {
+		t.Errorf("Expected width 100, got %d", m.ctx.Width)
 	}
-	if m.height != 50 {
-		t.Errorf("Expected height 50, got %d", m.height)
+	if m.ctx.Height != 50 {
+		t.Errorf("Expected height 50, got %d", m.ctx.Height)
 	}
 }
 
@@ -111,7 +111,7 @@ func TestBackupListModel_Delete(t *testing.T) {
 	os.WriteFile(metaFile, []byte("{}"), 0600)
 
 	cfg := &config.Config{BackupDir: tempDir}
-	model := NewBackupList(cfg, nil)
+	model := NewBackupList(NewProgramContext(cfg, nil))
 
 	msg := model.Init()()
 	updated, _ := model.Update(msg)
@@ -172,7 +172,7 @@ func TestBackupListModel_DeleteBlocksTabNavigation(t *testing.T) {
 	os.WriteFile(filepath.Join(tempDir, "backup-20231026-100000.tar.gz.enc"), []byte("x"), 0600)
 
 	cfg := &config.Config{BackupDir: tempDir}
-	model := NewBackupList(cfg, nil)
+	model := NewBackupList(NewProgramContext(cfg, nil))
 
 	msg := model.Init()()
 	updated, _ := model.Update(msg)
@@ -185,5 +185,35 @@ func TestBackupListModel_DeleteBlocksTabNavigation(t *testing.T) {
 
 	if !model.IsCreating() {
 		t.Error("IsCreating() should return true during delete confirmation")
+	}
+}
+
+func TestBackupListHelpBindings(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewBackupList(NewProgramContext(cfg, nil))
+
+	help := model.HelpBindings()
+	if help == nil {
+		t.Error("HelpBindings should not return nil")
+	}
+
+	// Just verify we have some help entries
+	if len(help) == 0 {
+		t.Error("HelpBindings should return at least one entry")
+	}
+}
+
+func TestBackupListStatusHelpText(t *testing.T) {
+	cfg := &config.Config{BackupDir: "."}
+	model := NewBackupList(NewProgramContext(cfg, nil))
+
+	helpText := model.StatusHelpText()
+	if helpText == "" {
+		t.Error("StatusHelpText should not be empty")
+	}
+
+	// Check for expected help elements
+	if !strings.Contains(helpText, "navigate") {
+		t.Errorf("StatusHelpText should contain 'navigate', got: %s", helpText)
 	}
 }

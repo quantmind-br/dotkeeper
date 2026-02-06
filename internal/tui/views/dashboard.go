@@ -8,16 +8,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // DashboardModel represents the dashboard view
 type DashboardModel struct {
-	config      *config.Config
-	width       int
-	height      int
+	ctx         *ProgramContext
 	lastBackup  time.Time
 	fileCount   int
 	totalSize   int64
@@ -39,9 +36,9 @@ var dashboardActions = []dashboardAction{
 }
 
 // NewDashboard creates a new dashboard model
-func NewDashboard(cfg *config.Config) DashboardModel {
+func NewDashboard(ctx *ProgramContext) DashboardModel {
 	return DashboardModel{
-		config: cfg,
+		ctx: ensureProgramContext(ctx),
 	}
 }
 
@@ -54,8 +51,8 @@ func (m DashboardModel) Init() tea.Cmd {
 func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.ctx.Width = msg.Width
+		m.ctx.Height = msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left", "up":
@@ -118,7 +115,7 @@ func (m DashboardModel) View() string {
 	}
 
 	var statsBlock string
-	if m.width >= styles.BreakpointWide {
+	if m.ctx.Width >= styles.BreakpointWide {
 		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 	} else {
 		statsBlock = lipgloss.JoinVertical(lipgloss.Left, cards...)
@@ -143,7 +140,7 @@ func (m DashboardModel) View() string {
 	}
 
 	var actionsBlock string
-	if m.width >= styles.BreakpointMedium {
+	if m.ctx.Width >= styles.BreakpointMedium {
 		actionsBlock = lipgloss.JoinHorizontal(lipgloss.Top, actionButtons...)
 	} else {
 		actionsBlock = lipgloss.JoinVertical(lipgloss.Left, actionButtons...)
@@ -165,10 +162,14 @@ type statusMsg struct {
 
 func (m DashboardModel) refreshStatus() tea.Cmd {
 	return func() tea.Msg {
-		result := pathutil.ScanPaths(m.config.ActiveFiles(), m.config.ActiveFolders(), m.config.Exclude)
+		if m.ctx.Config == nil {
+			return statusMsg{}
+		}
+
+		result := pathutil.ScanPaths(m.ctx.Config.ActiveFiles(), m.ctx.Config.ActiveFolders(), m.ctx.Config.Exclude)
 
 		var lastBackup time.Time
-		dir := pathutil.ExpandHome(m.config.BackupDir)
+		dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
 		backups, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 		if len(backups) > 0 {
 			info, _ := os.Stat(backups[len(backups)-1])

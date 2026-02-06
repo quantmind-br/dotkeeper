@@ -62,9 +62,7 @@ type pathDescsMsg struct {
 
 // SettingsModel represents the settings view
 type SettingsModel struct {
-	config        *config.Config
-	width         int
-	height        int
+	ctx           *ProgramContext
 	state         settingsState
 	mainList      list.Model
 	filesList     list.Model
@@ -85,7 +83,18 @@ type SettingsModel struct {
 }
 
 // NewSettings creates a new settings model
-func NewSettings(cfg *config.Config) SettingsModel {
+func NewSettings(ctx *ProgramContext) SettingsModel {
+	ctx = ensureProgramContext(ctx)
+	if ctx.Config == nil {
+		ctx.Config = &config.Config{}
+	}
+	if ctx.Width == 0 {
+		ctx.Width = 80
+	}
+	if ctx.Height == 0 {
+		ctx.Height = 24
+	}
+
 	pc := components.NewPathCompleter()
 
 	mainList := styles.NewMinimalList()
@@ -108,9 +117,7 @@ func NewSettings(cfg *config.Config) SettingsModel {
 	fp.ShowHidden = true
 
 	m := SettingsModel{
-		config:        cfg,
-		width:         80,
-		height:        24,
+		ctx:           ctx,
 		state:         stateListNavigating,
 		mainList:      mainList,
 		filesList:     filesList,
@@ -162,7 +169,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = m.filePickerParent
 						return m, nil
 					}
-					m.config.Files = append(m.config.Files, path)
+					m.ctx.Config.Files = append(m.ctx.Config.Files, path)
 					m.refreshPathList(pathListFiles)
 				} else {
 					if statErr == nil && !info.IsDir() {
@@ -170,7 +177,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.state = m.filePickerParent
 						return m, nil
 					}
-					m.config.Folders = append(m.config.Folders, path)
+					m.ctx.Config.Folders = append(m.ctx.Config.Folders, path)
 					m.refreshPathList(pathListFolders)
 				}
 				m.errMsg = ""
@@ -189,8 +196,8 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.ctx.Width = msg.Width
+		m.ctx.Height = msg.Height
 		m.resizeLists()
 
 	case tea.KeyMsg:
@@ -247,7 +254,7 @@ func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		case 3:
 			m.state = stateBrowsingFolders
 		case 5:
-			m.config.Notifications = !m.config.Notifications
+			m.ctx.Config.Notifications = !m.ctx.Config.Notifications
 			m.refreshMainList()
 		}
 		return m, nil
@@ -258,9 +265,9 @@ func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 			return m, nil
 		}
 		if selected.index == 2 {
-			m.startEditingSubItem(stateBrowsingFiles, len(m.config.Files), "")
+			m.startEditingSubItem(stateBrowsingFiles, len(m.ctx.Config.Files), "")
 		} else if selected.index == 3 {
-			m.startEditingSubItem(stateBrowsingFolders, len(m.config.Folders), "")
+			m.startEditingSubItem(stateBrowsingFolders, len(m.ctx.Config.Folders), "")
 		}
 		return m, nil
 
@@ -276,31 +283,31 @@ func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 
 func (m *SettingsModel) pathsForType(lt pathListType) []string {
 	if lt == pathListFiles {
-		return m.config.Files
+		return m.ctx.Config.Files
 	}
-	return m.config.Folders
+	return m.ctx.Config.Folders
 }
 
 func (m *SettingsModel) setPathsForType(lt pathListType, paths []string) {
 	if lt == pathListFiles {
-		m.config.Files = paths
+		m.ctx.Config.Files = paths
 	} else {
-		m.config.Folders = paths
+		m.ctx.Config.Folders = paths
 	}
 }
 
 func (m *SettingsModel) disabledPathsForType(lt pathListType) []string {
 	if lt == pathListFiles {
-		return m.config.DisabledFiles
+		return m.ctx.Config.DisabledFiles
 	}
-	return m.config.DisabledFolders
+	return m.ctx.Config.DisabledFolders
 }
 
 func (m *SettingsModel) setDisabledPathsForType(lt pathListType, paths []string) {
 	if lt == pathListFiles {
-		m.config.DisabledFiles = paths
+		m.ctx.Config.DisabledFiles = paths
 	} else {
-		m.config.DisabledFolders = paths
+		m.ctx.Config.DisabledFolders = paths
 	}
 }
 
@@ -453,15 +460,15 @@ func (m SettingsModel) handleEditingSubItemInput(msg tea.KeyMsg) (tea.Model, tea
 	case "enter":
 		value := strings.TrimSpace(m.pathCompleter.Input.Value())
 		if pathutil.IsGlobPattern(value) {
-			results, err := pathutil.ResolveGlob(value, m.config.Exclude)
+			results, err := pathutil.ResolveGlob(value, m.ctx.Config.Exclude)
 			if err != nil {
 				m.errMsg = err.Error()
 				return m, nil
 			}
 			if m.subEditParent == stateBrowsingFiles {
-				m.config.Files = append(m.config.Files, results...)
+				m.ctx.Config.Files = append(m.ctx.Config.Files, results...)
 			} else {
-				m.config.Folders = append(m.config.Folders, results...)
+				m.ctx.Config.Folders = append(m.ctx.Config.Folders, results...)
 			}
 			m.status = fmt.Sprintf("Added %d paths from glob", len(results))
 			m.refreshPathList(pathListFiles)
@@ -495,11 +502,11 @@ func (m *SettingsModel) startEditingField() {
 	m.pathCompleter.Input.Focus()
 	switch m.editingFieldIndex {
 	case 0:
-		m.pathCompleter.Input.SetValue(m.config.BackupDir)
+		m.pathCompleter.Input.SetValue(m.ctx.Config.BackupDir)
 	case 1:
-		m.pathCompleter.Input.SetValue(m.config.GitRemote)
+		m.pathCompleter.Input.SetValue(m.ctx.Config.GitRemote)
 	case 4:
-		m.pathCompleter.Input.SetValue(m.config.Schedule)
+		m.pathCompleter.Input.SetValue(m.ctx.Config.Schedule)
 	default:
 		m.pathCompleter.Input.SetValue("")
 	}
@@ -530,10 +537,10 @@ func (m *SettingsModel) saveFieldValue(value string) {
 		}
 		// Clear error and save expanded path
 		m.errMsg = ""
-		if m.subEditIndex < len(m.config.Files) {
-			m.config.Files[m.subEditIndex] = expandedPath
+		if m.subEditIndex < len(m.ctx.Config.Files) {
+			m.ctx.Config.Files[m.subEditIndex] = expandedPath
 		} else {
-			m.config.Files = append(m.config.Files, expandedPath)
+			m.ctx.Config.Files = append(m.ctx.Config.Files, expandedPath)
 		}
 	} else if m.state == stateEditingSubItem && m.subEditParent == stateBrowsingFolders {
 		// Check if empty
@@ -549,27 +556,27 @@ func (m *SettingsModel) saveFieldValue(value string) {
 		}
 		// Clear error and save expanded path
 		m.errMsg = ""
-		if m.subEditIndex < len(m.config.Folders) {
-			m.config.Folders[m.subEditIndex] = expandedPath
+		if m.subEditIndex < len(m.ctx.Config.Folders) {
+			m.ctx.Config.Folders[m.subEditIndex] = expandedPath
 		} else {
-			m.config.Folders = append(m.config.Folders, expandedPath)
+			m.ctx.Config.Folders = append(m.ctx.Config.Folders, expandedPath)
 		}
 	} else {
 		switch m.editingFieldIndex {
 		case 0:
-			m.config.BackupDir = pathutil.ExpandHome(value)
+			m.ctx.Config.BackupDir = pathutil.ExpandHome(value)
 		case 1:
-			m.config.GitRemote = value
+			m.ctx.Config.GitRemote = value
 		case 4:
-			m.config.Schedule = value
+			m.ctx.Config.Schedule = value
 		case 5:
-			m.config.Notifications = value == "true"
+			m.ctx.Config.Notifications = value == "true"
 		}
 	}
 }
 
 func (m *SettingsModel) saveConfig() {
-	if err := m.config.Save(); err != nil {
+	if err := m.ctx.Config.Save(); err != nil {
 		m.errMsg = err.Error()
 		m.status = ""
 		return
@@ -601,18 +608,18 @@ func getInspectInfo(path string) string {
 }
 
 func (m *SettingsModel) refreshMainList() {
-	schedule := m.config.Schedule
+	schedule := m.ctx.Config.Schedule
 	if schedule == "" {
 		schedule = "Not scheduled"
 	}
 
 	items := []list.Item{
-		settingItem{label: "Backup Directory", value: m.config.BackupDir, index: 0},
-		settingItem{label: "Git Remote", value: m.config.GitRemote, index: 1},
-		settingItem{label: "Files", value: fmt.Sprintf("%d files", len(m.config.Files)), index: 2},
-		settingItem{label: "Folders", value: fmt.Sprintf("%d folders", len(m.config.Folders)), index: 3},
+		settingItem{label: "Backup Directory", value: m.ctx.Config.BackupDir, index: 0},
+		settingItem{label: "Git Remote", value: m.ctx.Config.GitRemote, index: 1},
+		settingItem{label: "Files", value: fmt.Sprintf("%d files", len(m.ctx.Config.Files)), index: 2},
+		settingItem{label: "Folders", value: fmt.Sprintf("%d folders", len(m.ctx.Config.Folders)), index: 3},
 		settingItem{label: "Schedule", value: schedule, index: 4},
-		settingItem{label: "Notifications", value: fmt.Sprintf("%v", m.config.Notifications), index: 5},
+		settingItem{label: "Notifications", value: fmt.Sprintf("%v", m.ctx.Config.Notifications), index: 5},
 	}
 
 	selected := m.mainList.Index()
@@ -662,10 +669,10 @@ func (m *SettingsModel) refreshPathList(lt pathListType) {
 }
 
 func (m SettingsModel) scanPathDescs() tea.Cmd {
-	files := make([]string, len(m.config.Files))
-	copy(files, m.config.Files)
-	folders := make([]string, len(m.config.Folders))
-	copy(folders, m.config.Folders)
+	files := make([]string, len(m.ctx.Config.Files))
+	copy(files, m.ctx.Config.Files)
+	folders := make([]string, len(m.ctx.Config.Folders))
+	copy(folders, m.ctx.Config.Folders)
 	return func() tea.Msg {
 		descs := make(map[string]string, len(files)+len(folders))
 		for _, p := range files {
@@ -679,8 +686,8 @@ func (m SettingsModel) scanPathDescs() tea.Cmd {
 }
 
 func (m *SettingsModel) resizeLists() {
-	width := m.width
-	height := m.height
+	width := m.ctx.Width
+	height := m.ctx.Height
 	if m.state == stateEditingField || m.state == stateEditingSubItem {
 		height -= 2
 	}
@@ -734,8 +741,8 @@ func (m SettingsModel) View() string {
 		}
 		b.WriteString(st.Subtitle.Render(title) + "\n")
 		fpView := m.filePicker.View()
-		if m.width > 0 {
-			fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+		if m.ctx.Width > 0 {
+			fpView = lipgloss.NewStyle().MaxWidth(m.ctx.Width - 4).Render(fpView)
 		}
 		b.WriteString(fpView)
 	}
@@ -746,7 +753,7 @@ func (m SettingsModel) View() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n" + RenderStatusBar(m.width, m.status, m.errMsg, ""))
+	b.WriteString("\n" + RenderStatusBar(m.ctx.Width, m.status, m.errMsg, ""))
 
 	return b.String()
 }

@@ -39,6 +39,7 @@ type Model struct {
 	err         error
 	showingHelp bool
 	history     *history.Store
+	ctx         *views.ProgramContext
 
 	// Setup mode
 	setupMode bool
@@ -57,10 +58,12 @@ func NewModel() Model {
 	cfg, err := config.Load()
 	if err != nil {
 		// Config doesn't exist, enter setup mode
+		ctx := NewProgramContext(nil, nil)
 		return Model{
 			state:     SetupView,
 			setupMode: true,
-			setup:     views.NewSetup(),
+			setup:     views.NewSetup(ctx),
+			ctx:       ctx,
 			cfg:       nil,
 		}
 	}
@@ -71,16 +74,19 @@ func NewModel() Model {
 		store = nil
 	}
 
+	ctx := NewProgramContext(cfg, store)
+
 	return Model{
 		state:      DashboardView,
 		setupMode:  false,
 		cfg:        cfg,
 		history:    store,
-		dashboard:  views.NewDashboard(cfg),
-		backupList: views.NewBackupList(cfg, store),
-		restore:    views.NewRestore(cfg, store),
-		settings:   views.NewSettings(cfg),
-		logs:       views.NewLogs(cfg, store),
+		ctx:        ctx,
+		dashboard:  views.NewDashboard(ctx),
+		backupList: views.NewBackupList(ctx),
+		restore:    views.NewRestore(ctx),
+		settings:   views.NewSettings(ctx),
+		logs:       views.NewLogs(ctx),
 	}
 }
 
@@ -88,24 +94,29 @@ func NewModel() Model {
 // This bypasses config/history loading side effects.
 func NewModelForTest(cfg *config.Config, store *history.Store) Model {
 	if cfg == nil {
+		ctx := NewProgramContext(nil, store)
 		return Model{
 			state:     SetupView,
 			setupMode: true,
-			setup:     views.NewSetup(),
+			setup:     views.NewSetup(ctx),
+			ctx:       ctx,
 			cfg:       nil,
 		}
 	}
+
+	ctx := NewProgramContext(cfg, store)
 
 	return Model{
 		state:      DashboardView,
 		setupMode:  false,
 		cfg:        cfg,
 		history:    store,
-		dashboard:  views.NewDashboard(cfg),
-		backupList: views.NewBackupList(cfg, store),
-		restore:    views.NewRestore(cfg, store),
-		settings:   views.NewSettings(cfg),
-		logs:       views.NewLogs(cfg, store),
+		ctx:        ctx,
+		dashboard:  views.NewDashboard(ctx),
+		backupList: views.NewBackupList(ctx),
+		restore:    views.NewRestore(ctx),
+		settings:   views.NewSettings(ctx),
+		logs:       views.NewLogs(ctx),
 	}
 }
 
@@ -124,6 +135,9 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) GetConfig() *config.Config {
+	if m.ctx != nil {
+		return m.ctx.Config
+	}
 	return m.cfg
 }
 

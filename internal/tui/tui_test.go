@@ -214,6 +214,13 @@ func TestUpdate_MessageRouting_DashboardNavigate(t *testing.T) {
 	}
 }
 
+func TestUpdate_WindowSizeMsg_PreservesViewCommands(t *testing.T) {
+	m := NewModelForTest(testConfig(), nil)
+
+	_, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	_ = cmd
+}
+
 func TestUpdate_InputActiveBlocksTab(t *testing.T) {
 	m := NewModelForTest(testConfig(), nil)
 	m.state = SettingsView
@@ -274,7 +281,7 @@ func TestSetupMode_CompleteTransitionsToDashboard(t *testing.T) {
 	m := Model{
 		state:     SetupView,
 		setupMode: true,
-		setup:     views.NewSetup(),
+		setup:     views.NewSetup(views.NewProgramContext(nil, nil)),
 	}
 	if !m.setupMode {
 		t.Fatal("expected setup mode model")

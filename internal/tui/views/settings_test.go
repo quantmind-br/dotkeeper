@@ -26,9 +26,9 @@ func sendKey(t *testing.T, model SettingsModel, key tea.KeyMsg) SettingsModel {
 
 func TestSettingsNewSettings(t *testing.T) {
 	cfg := testSettingsConfig()
-	model := NewSettings(cfg)
+	model := NewSettings(NewProgramContext(cfg, nil))
 
-	if model.config != cfg {
+	if model.ctx.Config != cfg {
 		t.Fatalf("expected model to keep provided config pointer")
 	}
 	if model.state != stateListNavigating {
@@ -41,7 +41,7 @@ func TestSettingsNewSettings(t *testing.T) {
 
 func TestSettingsViewShowsValues(t *testing.T) {
 	cfg := testSettingsConfig()
-	model := NewSettings(cfg)
+	model := NewSettings(NewProgramContext(cfg, nil))
 	viewOutput := stripANSI(model.View())
 
 	expectedStrings := []string{
@@ -66,7 +66,7 @@ func TestSettingsViewShowsValues(t *testing.T) {
 }
 
 func TestSettingsIsEditingByState(t *testing.T) {
-	model := NewSettings(testSettingsConfig())
+	model := NewSettings(NewProgramContext(testSettingsConfig(), nil))
 
 	model.state = stateListNavigating
 	if model.IsEditing() {
@@ -89,7 +89,7 @@ func TestSettingsIsEditingByState(t *testing.T) {
 }
 
 func TestSettingsTransitions(t *testing.T) {
-	model := NewSettings(testSettingsConfig())
+	model := NewSettings(NewProgramContext(testSettingsConfig(), nil))
 
 	if model.state != stateListNavigating {
 		t.Fatalf("expected stateListNavigating at start, got %v", model.state)
@@ -107,7 +107,7 @@ func TestSettingsTransitions(t *testing.T) {
 }
 
 func TestSettingsSaveWithS(t *testing.T) {
-	model := NewSettings(testSettingsConfig())
+	model := NewSettings(NewProgramContext(testSettingsConfig(), nil))
 	configHome := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 
@@ -124,8 +124,8 @@ func TestSettingsSaveWithS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected saved config to load, got error: %v", err)
 	}
-	if loaded.BackupDir != model.config.BackupDir {
-		t.Fatalf("saved config backup_dir mismatch: got %q want %q", loaded.BackupDir, model.config.BackupDir)
+	if loaded.BackupDir != model.ctx.Config.BackupDir {
+		t.Fatalf("saved config backup_dir mismatch: got %q want %q", loaded.BackupDir, model.ctx.Config.BackupDir)
 	}
 }
 
@@ -144,7 +144,7 @@ func search(s, substr string) bool {
 }
 
 func TestSettingsFilePickerState(t *testing.T) {
-	model := NewSettings(testSettingsConfig())
+	model := NewSettings(NewProgramContext(testSettingsConfig(), nil))
 	// Navigate to files browsing
 	model.state = stateBrowsingFiles
 	// Press 'b' to open file picker
@@ -164,7 +164,7 @@ func TestSettingsFilePickerState(t *testing.T) {
 
 func TestSettingsToggleDisable(t *testing.T) {
 	cfg := testSettingsConfig()
-	model := NewSettings(cfg)
+	model := NewSettings(NewProgramContext(cfg, nil))
 	model.state = stateBrowsingFiles
 
 	if len(model.filesList.Items()) == 0 {
@@ -173,20 +173,20 @@ func TestSettingsToggleDisable(t *testing.T) {
 
 	// Space toggles disable
 	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	if len(model.config.DisabledFiles) != 1 {
-		t.Fatalf("expected 1 disabled file, got %d", len(model.config.DisabledFiles))
+	if len(model.ctx.Config.DisabledFiles) != 1 {
+		t.Fatalf("expected 1 disabled file, got %d", len(model.ctx.Config.DisabledFiles))
 	}
 
 	// Space again toggles enable
 	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
-	if len(model.config.DisabledFiles) != 0 {
-		t.Fatalf("expected 0 disabled files after re-toggle, got %d", len(model.config.DisabledFiles))
+	if len(model.ctx.Config.DisabledFiles) != 0 {
+		t.Fatalf("expected 0 disabled files after re-toggle, got %d", len(model.ctx.Config.DisabledFiles))
 	}
 }
 
 func TestSettingsInspect(t *testing.T) {
 	cfg := testSettingsConfig()
-	model := NewSettings(cfg)
+	model := NewSettings(NewProgramContext(cfg, nil))
 	model.state = stateBrowsingFiles
 
 	// Press 'i' for inspect

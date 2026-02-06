@@ -49,7 +49,7 @@ func detectPresetsCmd(homeDir string) tea.Cmd {
 // SetupModel represents the setup wizard
 type SetupModel struct {
 	step          SetupStep
-	config        *config.Config
+	ctx           *ProgramContext
 	pathCompleter components.PathCompleter
 	filePicker    filepicker.Model
 	browsing      bool
@@ -59,14 +59,17 @@ type SetupModel struct {
 	presetsLoaded bool
 	addedFiles    []string
 	addedFolders  []string
-	width         int
-	height        int
 	err           error
 	validationErr string
 }
 
 // NewSetup creates a new setup wizard model
-func NewSetup() SetupModel {
+// Setup can run with ctx.Config == nil initially; it allocates one as needed.
+func NewSetup(ctx *ProgramContext) SetupModel {
+	ctx = ensureProgramContext(ctx)
+	if ctx.Config == nil {
+		ctx.Config = &config.Config{}
+	}
 	pc := components.NewPathCompleter()
 
 	fp := filepicker.New()
@@ -78,7 +81,7 @@ func NewSetup() SetupModel {
 
 	return SetupModel{
 		step:          StepWelcome,
-		config:        &config.Config{},
+		ctx:           ctx,
 		pathCompleter: pc,
 		filePicker:    fp,
 	}
@@ -218,16 +221,16 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.pathCompleter.Input.Focus()
 
 	case StepBackupDir:
-		m.config.BackupDir = pathutil.ExpandHome(m.pathCompleter.Input.Value())
-		if m.config.BackupDir == "" {
-			m.config.BackupDir = pathutil.ExpandHome("~/.dotfiles")
+		m.ctx.Config.BackupDir = pathutil.ExpandHome(m.pathCompleter.Input.Value())
+		if m.ctx.Config.BackupDir == "" {
+			m.ctx.Config.BackupDir = pathutil.ExpandHome("~/.dotfiles")
 		}
 		m.step = StepGitRemote
 		m.resetInput()
 		m.pathCompleter.Input.Focus()
 
 	case StepGitRemote:
-		m.config.GitRemote = m.pathCompleter.Input.Value()
+		m.ctx.Config.GitRemote = m.pathCompleter.Input.Value()
 		m.step = StepPresetFiles
 		m.presetCursor = 0
 
@@ -265,19 +268,19 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 
 	case StepConfirm:
 		// Save configuration
-		m.config.Files = m.addedFiles
-		m.config.Folders = m.addedFolders
-		if m.config.Notifications == false && len(m.addedFiles) == 0 && len(m.addedFolders) == 0 {
-			m.config.Notifications = true // Default to true
+		m.ctx.Config.Files = m.addedFiles
+		m.ctx.Config.Folders = m.addedFolders
+		if m.ctx.Config.Notifications == false && len(m.addedFiles) == 0 && len(m.addedFolders) == 0 {
+			m.ctx.Config.Notifications = true // Default to true
 		}
 
-		if err := m.config.Save(); err != nil {
+		if err := m.ctx.Config.Save(); err != nil {
 			m.err = err
 			return m, nil
 		}
 
 		m.step = StepComplete
-		cfg := m.config
+		cfg := m.ctx.Config
 		return m, func() tea.Msg {
 			return SetupCompleteMsg{Config: cfg}
 		}
@@ -356,8 +359,8 @@ func (m *SetupModel) resetInput() {
 // applyResize updates all dimension-dependent fields from a terminal resize.
 // Called from both browsing and non-browsing WindowSizeMsg handlers.
 func (m *SetupModel) applyResize(width, height int) {
-	m.width = width
-	m.height = height
+	m.ctx.Width = width
+	m.ctx.Height = height
 	fpHeight := height - 8
 	if fpHeight < 0 {
 		fpHeight = 0
@@ -372,12 +375,12 @@ func (m *SetupModel) applyResize(width, height int) {
 
 // View renders the setup wizard
 func (m SetupModel) View() string {
-	if m.width > 0 && m.height > 0 &&
-		(m.width < styles.MinTerminalWidth || m.height < styles.MinTerminalHeight) {
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+	if m.ctx.Width > 0 && m.ctx.Height > 0 &&
+		(m.ctx.Width < styles.MinTerminalWidth || m.ctx.Height < styles.MinTerminalHeight) {
+		return lipgloss.Place(m.ctx.Width, m.ctx.Height, lipgloss.Center, lipgloss.Center,
 			"Terminal too small\n"+
 				fmt.Sprintf("Minimum: %dx%d", styles.MinTerminalWidth, styles.MinTerminalHeight)+"\n"+
-				fmt.Sprintf("Current: %dx%d", m.width, m.height),
+				fmt.Sprintf("Current: %dx%d", m.ctx.Width, m.ctx.Height),
 		)
 	}
 
@@ -475,8 +478,8 @@ func (m SetupModel) View() string {
 		if m.browsing {
 			s.WriteString("Browse for files:\n\n")
 			fpView := m.filePicker.View()
-			if m.width > 0 {
-				fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+			if m.ctx.Width > 0 {
+				fpView = lipgloss.NewStyle().MaxWidth(m.ctx.Width - 4).Render(fpView)
 			}
 			s.WriteString(fpView)
 			helpText = "Enter: select | ↑/↓: navigate | Esc: cancel"
@@ -506,8 +509,8 @@ func (m SetupModel) View() string {
 		if m.browsing {
 			s.WriteString("Browse for folders:\n\n")
 			fpView := m.filePicker.View()
-			if m.width > 0 {
-				fpView = lipgloss.NewStyle().MaxWidth(m.width - 4).Render(fpView)
+			if m.ctx.Width > 0 {
+				fpView = lipgloss.NewStyle().MaxWidth(m.ctx.Width - 4).Render(fpView)
 			}
 			s.WriteString(fpView)
 			helpText = "Enter: select | ↑/↓: navigate | Esc: cancel"
@@ -533,8 +536,8 @@ func (m SetupModel) View() string {
 
 	case StepConfirm:
 		s.WriteString(st.Title.Render("Step 7: Confirm Configuration") + "\n\n")
-		s.WriteString(st.Label.Render("Backup Directory: ") + m.config.BackupDir + "\n")
-		s.WriteString(st.Label.Render("Git Remote: ") + m.config.GitRemote + "\n")
+		s.WriteString(st.Label.Render("Backup Directory: ") + m.ctx.Config.BackupDir + "\n")
+		s.WriteString(st.Label.Render("Git Remote: ") + m.ctx.Config.GitRemote + "\n")
 		s.WriteString(st.Label.Render("Files: ") + fmt.Sprintf("%d", len(m.addedFiles)) + "\n")
 		s.WriteString(st.Label.Render("Folders: ") + fmt.Sprintf("%d", len(m.addedFolders)) + "\n\n")
 
@@ -569,7 +572,7 @@ func (m SetupModel) View() string {
 		}
 	}
 
-	s.WriteString(RenderStatusBar(m.width, statusText, errMsg, helpText))
+	s.WriteString(RenderStatusBar(m.ctx.Width, statusText, errMsg, helpText))
 
 	return s.String()
 }
