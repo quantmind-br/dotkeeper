@@ -132,6 +132,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case tea.MouseMsg:
+		// Handle mouse clicks on tab bar (row 1)
+		if msg.Action == tea.MouseActionRelease && msg.Button == tea.MouseButtonLeft && msg.Y == 1 {
+			tabIdx := m.calculateTabFromX(msg.X)
+			if tabIdx >= 0 && tabIdx < len(tabOrder) {
+				prevState := m.state
+				m.state = tabOrder[tabIdx]
+				if m.state != prevState {
+					if cmd := m.refreshCmdForState(m.state); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
+				}
+				return m, tea.Batch(cmds...)
+			}
+		}
+
 	case tea.KeyMsg:
 		if m.showingHelp {
 			m.showingHelp = false

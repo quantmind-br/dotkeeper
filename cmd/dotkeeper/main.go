@@ -29,7 +29,7 @@ func main() {
 
 	// If no commands provided, launch TUI
 	if flag.NArg() == 0 {
-		p := tea.NewProgram(tui.NewModel(), tea.WithAltScreen())
+		p := tea.NewProgram(tui.NewModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 		if _, err := p.Run(); err != nil {
 			fmt.Printf("Alas, there's been an error: %v\n", err)
 			os.Exit(1)

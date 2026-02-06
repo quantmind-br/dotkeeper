@@ -183,3 +183,29 @@ func (m Model) isInputActive() bool {
 	}
 	return false
 }
+
+// calculateTabFromX determines which tab was clicked based on X coordinate.
+// Returns the tab index (0-4) or -1 if no tab was hit.
+// Tab bar layout: "1 Dashboard │ 2 Backups │ 3 Restore │ 4 Settings │ 5 Logs"
+// with 2-char left margin.
+func (m Model) calculateTabFromX(x int) int {
+	// Tab names and their widths (including key + space + label)
+	tabNames := []string{"Dashboard", "Backups", "Restore", "Settings", "Logs"}
+
+	// Start position after 2-char left margin
+	pos := 2
+
+	for i, name := range tabNames {
+		// Tab width: "K " (key + space) + label + padding
+		tabWidth := 2 + len(name)
+
+		if x >= pos && x < pos+tabWidth {
+			return i
+		}
+
+		// Move to next tab: current tab + separator " │ " (3 chars)
+		pos += tabWidth + 3
+	}
+
+	return -1
+}
