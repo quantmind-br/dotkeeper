@@ -27,6 +27,8 @@ const (
 	stateFilePickerActive
 )
 
+const settingsViewChromeHeight = 5
+
 // pathListType distinguishes between file and folder path lists.
 type pathListType int
 
@@ -707,12 +709,12 @@ func (m SettingsModel) scanPathDescs() tea.Cmd {
 
 func (m *SettingsModel) resizeLists() {
 	width := m.ctx.Width
-	height := m.ctx.Height
+	height := m.ctx.Height - settingsViewChromeHeight
 	if m.state == stateEditingField || m.state == stateEditingSubItem {
 		height -= 2
 	}
-	if height < 6 {
-		height = 6
+	if height < 0 {
+		height = 0
 	}
 
 	if m.state == stateFilePickerActive {

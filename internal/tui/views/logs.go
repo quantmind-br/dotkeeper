@@ -23,6 +23,8 @@ type LogsModel struct {
 	loading bool
 }
 
+const logsViewChromeHeight = 5
+
 // logItem adapts history.HistoryEntry to list.Item
 type logItem struct {
 	entry history.HistoryEntry
@@ -115,8 +117,11 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
-		// Adjust list size. Reserve space for chrome
-		m.list.SetSize(msg.Width, msg.Height)
+		listHeight := msg.Height - logsViewChromeHeight
+		if listHeight < 0 {
+			listHeight = 0
+		}
+		m.list.SetSize(msg.Width, listHeight)
 
 	case spinner.TickMsg:
 		if m.loading {

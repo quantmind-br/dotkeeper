@@ -43,6 +43,8 @@ type BackupListModel struct {
 	loading          bool
 }
 
+const backupListViewChromeHeight = 5
+
 func NewBackupList(ctx *ProgramContext) BackupListModel {
 	l := styles.NewMinimalList()
 
@@ -122,7 +124,11 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
-		m.list.SetSize(msg.Width, msg.Height)
+		listHeight := msg.Height - backupListViewChromeHeight
+		if listHeight < 0 {
+			listHeight = 0
+		}
+		m.list.SetSize(msg.Width, listHeight)
 		// Responsive password input width
 		pw := msg.Width - 6
 		if pw < 20 {

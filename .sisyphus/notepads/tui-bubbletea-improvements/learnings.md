@@ -211,3 +211,31 @@ content.WriteString(helpContent)
 
 - BubbleTea sub-view updates should always use safe type assertions after `Update()` returns `tea.Model`.
 - Guarded assertions prevent rare panic paths while keeping normal behavior unchanged.
+
+## Post-plan bugfix: preserve main chrome across list-based views
+
+**Date**: 2026-02-06
+**Task**: Fix tab/title bar disappearing when switching away from Dashboard due to list over-allocation.
+
+### Changes Made:
+
+1. Added per-view internal chrome constants and subtracted them in `tea.WindowSizeMsg` handlers before calling list `SetSize`:
+   - `backuplist.go`: `backupListViewChromeHeight = 5`
+   - `logs.go`: `logsViewChromeHeight = 5`
+   - `restore.go`: `restoreViewChromeHeight = 5`
+   - `settings.go`: `settingsViewChromeHeight = 5` (applied in `resizeLists()`)
+
+2. Clamped computed list heights to zero to avoid negative sizing on tiny terminals.
+
+3. Kept framework sizing untouched (`propagateWindowSize` and `mainChromeHeight` unchanged), so fix is localized to per-view internal chrome accounting.
+
+### Verification:
+
+- `go build -o ./bin/dotkeeper ./cmd/dotkeeper/` ✅
+- `go test ./internal/tui/... -race -count=1` ✅
+- `lsp_diagnostics` on changed files (error severity): clean ✅
+- Interactive tmux verification: title bar + tab bar remained visible on Dashboard, Backups, Restore, Settings, and Logs; repeated Tab cycling kept chrome visible ✅
+
+### Pattern:
+
+- In this TUI architecture, view `WindowSizeMsg` already excludes framework chrome; list/viewport components still require subtracting **view-local** chrome (titles, spacing, status bars) before `SetSize`.

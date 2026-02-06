@@ -31,6 +31,8 @@ const (
 	phaseResults                         // 5: results display
 )
 
+const restoreViewChromeHeight = 5
+
 // RestoreModel represents the restore view
 type RestoreModel struct {
 	ctx              *ProgramContext
@@ -389,8 +391,12 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
-		m.backupList.SetSize(msg.Width, msg.Height)
-		m.fileList.SetSize(msg.Width, msg.Height)
+		listHeight := msg.Height - restoreViewChromeHeight
+		if listHeight < 0 {
+			listHeight = 0
+		}
+		m.backupList.SetSize(msg.Width, listHeight)
+		m.fileList.SetSize(msg.Width, listHeight)
 		// Viewport needs to account for its border styling (RoundedBorder adds 1 char on each side)
 		vpBorderW := 2 // left + right border
 		vpBorderH := 2 // top + bottom border
