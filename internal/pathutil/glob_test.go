@@ -29,7 +29,9 @@ func TestIsGlobPattern(t *testing.T) {
 func TestResolveGlob_StandardPatterns(t *testing.T) {
 	tmpDir := t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt", "c.log", "d.txt"} {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	results, err := ResolveGlob(filepath.Join(tmpDir, "*.txt"), nil)
@@ -44,7 +46,9 @@ func TestResolveGlob_StandardPatterns(t *testing.T) {
 func TestResolveGlob_QuestionMark(t *testing.T) {
 	tmpDir := t.TempDir()
 	for _, name := range []string{"config-1.yaml", "config-2.yaml", "config-AB.yaml"} {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	results, err := ResolveGlob(filepath.Join(tmpDir, "config-?.yaml"), nil)
@@ -59,9 +63,15 @@ func TestResolveGlob_QuestionMark(t *testing.T) {
 func TestResolveGlob_Recursive(t *testing.T) {
 	tmpDir := t.TempDir()
 	sub := filepath.Join(tmpDir, "sub")
-	os.MkdirAll(sub, 0755)
-	os.WriteFile(filepath.Join(tmpDir, "root.lua"), []byte("x"), 0644)
-	os.WriteFile(filepath.Join(sub, "nested.lua"), []byte("x"), 0644)
+	if err := os.MkdirAll(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "root.lua"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "nested.lua"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	results, err := ResolveGlob(filepath.Join(tmpDir, "**/*.lua"), nil)
 	if err != nil {
@@ -75,7 +85,9 @@ func TestResolveGlob_Recursive(t *testing.T) {
 func TestResolveGlob_Exclude(t *testing.T) {
 	tmpDir := t.TempDir()
 	for _, name := range []string{"a.txt", "b.txt", "c.log"} {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	results, err := ResolveGlob(filepath.Join(tmpDir, "*"), []string{"*.log"})
@@ -95,7 +107,9 @@ func TestResolveGlob_Exclude(t *testing.T) {
 func TestResolveGlob_Cap(t *testing.T) {
 	tmpDir := t.TempDir()
 	for i := 0; i < MaxGlobResults+1; i++ {
-		os.WriteFile(filepath.Join(tmpDir, filepath.Base(t.TempDir())+".txt"), []byte("x"), 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, filepath.Base(t.TempDir())+".txt"), []byte("x"), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	_, err := ResolveGlob(filepath.Join(tmpDir, "*.txt"), nil)

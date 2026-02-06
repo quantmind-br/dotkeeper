@@ -63,7 +63,7 @@ func ScanPaths(files, folders, exclude []string) ScanResult {
 			result.TotalSize += info.Size()
 		} else {
 			stat.Exists = true
-			filepath.Walk(expanded, func(path string, fi os.FileInfo, err error) error {
+			_ = filepath.Walk(expanded, func(path string, fi os.FileInfo, err error) error {
 				if err != nil {
 					return nil
 				}
@@ -121,7 +121,7 @@ func GetPathDesc(path string) string {
 	if info.IsDir() {
 		count := 0
 		var size int64
-		filepath.Walk(expanded, func(_ string, fi os.FileInfo, _ error) error {
+		_ = filepath.Walk(expanded, func(_ string, fi os.FileInfo, _ error) error {
 			if fi != nil && !fi.IsDir() {
 				count++
 				size += fi.Size()

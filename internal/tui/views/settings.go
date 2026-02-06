@@ -255,6 +255,60 @@ func (m SettingsModel) handleBrowsingFilesInput(msg tea.KeyMsg) (tea.Model, tea.
 	case "esc":
 		m.state = stateListNavigating
 		return m, nil
+	case " ":
+		selected, ok := m.filesList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd {
+			return m, nil
+		}
+		path := m.config.Files[selected.index]
+		// Toggle in DisabledFiles
+		found := false
+		for i, d := range m.config.DisabledFiles {
+			if d == path {
+				m.config.DisabledFiles = append(m.config.DisabledFiles[:i], m.config.DisabledFiles[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.config.DisabledFiles = append(m.config.DisabledFiles, path)
+		}
+		m.refreshFilesList()
+		return m, nil
+	case " ":
+		selected, ok := m.filesList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd {
+			return m, nil
+		}
+		path := m.config.Files[selected.index]
+		// Toggle in DisabledFiles
+		found := false
+		for i, d := range m.config.DisabledFiles {
+			if d == path {
+				m.config.DisabledFiles = append(m.config.DisabledFiles[:i], m.config.DisabledFiles[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.config.DisabledFiles = append(m.config.DisabledFiles, path)
+		}
+		m.refreshFilesList()
+		return m, nil
+	case "i":
+		selected, ok := m.filesList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd {
+			return m, nil
+		}
+		path := m.config.Files[selected.index]
+		m.inspecting = true
+		m.inspectInfo = getInspectInfo(path)
+		return m, nil
+	}
+		path := m.config.Files[selected.index]
+		m.inspecting = true
+		m.inspectInfo = getInspectInfo(path)
+		return m, nil
 	case "enter":
 		selected, ok := m.filesList.SelectedItem().(subSettingItem)
 		if !ok {
@@ -287,6 +341,12 @@ func (m SettingsModel) handleBrowsingFilesInput(msg tea.KeyMsg) (tea.Model, tea.
 		return m, nil
 	case "s":
 		m.saveConfig()
+		return m, nil
+	}
+
+	// If inspecting, any key dismisses
+	if m.inspecting {
+		m.inspecting = false
 		return m, nil
 	}
 

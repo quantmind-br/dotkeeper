@@ -63,9 +63,15 @@ func TestPathCompleter_Update(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Create dummy files
-	os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte(""), 0644)
+	if err := os.Mkdir(filepath.Join(tmpDir, "subdir"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "file2.txt"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	pc := NewPathCompleter()
 

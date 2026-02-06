@@ -19,20 +19,32 @@ func TestScanPaths(t *testing.T) {
 	//   file4.tmp (excluded)
 
 	file1 := filepath.Join(tmpDir, "file1.txt")
-	os.WriteFile(file1, []byte("0123456789"), 0644)
+	if err := os.WriteFile(file1, []byte("0123456789"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	folder1 := filepath.Join(tmpDir, "folder1")
-	os.Mkdir(folder1, 0755)
+	if err := os.Mkdir(folder1, 0755); err != nil {
+		t.Fatal(err)
+	}
 	file2 := filepath.Join(folder1, "file2.txt")
-	os.WriteFile(file2, make([]byte, 20), 0644)
+	if err := os.WriteFile(file2, make([]byte, 20), 0644); err != nil {
+		t.Fatal(err)
+	}
 	file3 := filepath.Join(folder1, "file3.log")
-	os.WriteFile(file3, make([]byte, 30), 0644)
+	if err := os.WriteFile(file3, make([]byte, 30), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	folder2 := filepath.Join(tmpDir, "folder2")
-	os.Mkdir(folder2, 0755)
+	if err := os.Mkdir(folder2, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	file4 := filepath.Join(folder1, "file4.tmp")
-	os.WriteFile(file4, make([]byte, 100), 0644)
+	if err := os.WriteFile(file4, make([]byte, 100), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	files := []string{file1, filepath.Join(tmpDir, "nonexistent.txt")}
 	folders := []string{folder1, folder2, filepath.Join(tmpDir, "nonexistent_folder")}
@@ -105,9 +117,15 @@ func TestGetPathDesc(t *testing.T) {
 
 	// Folder case
 	d := filepath.Join(tmpDir, "dir")
-	os.Mkdir(d, 0755)
-	os.WriteFile(filepath.Join(d, "a"), make([]byte, 10), 0644)
-	os.WriteFile(filepath.Join(d, "b"), make([]byte, 20), 0644)
+	if err := os.Mkdir(d, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "a"), make([]byte, 10), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "b"), make([]byte, 20), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Expect "2 files, 30 B"
 	expected := "2 files, 30 B"

@@ -157,3 +157,21 @@ func TestSettingsFilePickerState(t *testing.T) {
 		t.Fatalf("expected return to stateBrowsingFiles, got %v", model.state)
 	}
 }
+
+func TestSettingsInspect(t *testing.T) {
+	cfg := testSettingsConfig()
+	model := NewSettings(cfg)
+	model.state = stateBrowsingFiles
+
+	// Press 'i' for inspect
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if !model.inspecting {
+		t.Fatal("expected inspecting to be true")
+	}
+
+	// Any key dismisses
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if model.inspecting {
+		t.Fatal("expected inspecting to be false after dismiss")
+	}
+}
