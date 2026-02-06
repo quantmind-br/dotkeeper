@@ -84,6 +84,31 @@ func NewModel() Model {
 	}
 }
 
+// NewModelForTest creates a Model with pre-built config/store for testing.
+// This bypasses config/history loading side effects.
+func NewModelForTest(cfg *config.Config, store *history.Store) Model {
+	if cfg == nil {
+		return Model{
+			state:     SetupView,
+			setupMode: true,
+			setup:     views.NewSetup(),
+			cfg:       nil,
+		}
+	}
+
+	return Model{
+		state:      DashboardView,
+		setupMode:  false,
+		cfg:        cfg,
+		history:    store,
+		dashboard:  views.NewDashboard(cfg),
+		backupList: views.NewBackupList(cfg, store),
+		restore:    views.NewRestore(cfg, store),
+		settings:   views.NewSettings(cfg),
+		logs:       views.NewLogs(cfg, store),
+	}
+}
+
 func (m Model) Init() tea.Cmd {
 	if m.setupMode {
 		return m.setup.Init()
