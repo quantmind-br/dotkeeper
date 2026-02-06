@@ -60,6 +60,9 @@ func BackupCommand(args []string) int {
 		return 1
 	}
 
+	// Create history store once (best-effort)
+	store, storeErr := history.NewStore()
+
 	// Perform backup
 	fmt.Println("Starting backup...")
 	result, err := backup.Backup(cfg, password)
@@ -69,10 +72,10 @@ func BackupCommand(args []string) int {
 			notify.SendError(err)
 		}
 		// Log error to history (best-effort, don't fail if logging fails)
-		if store, err := history.NewStore(); err == nil {
+		if storeErr == nil {
 			store.Append(history.EntryFromBackupError(err))
 		} else {
-			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)
 		}
 		return 1
 	}
@@ -90,10 +93,10 @@ func BackupCommand(args []string) int {
 	}
 
 	// Log success to history (best-effort, don't fail if logging fails)
-	if store, err := history.NewStore(); err == nil {
+	if storeErr == nil {
 		store.Append(history.EntryFromBackupResult(result))
 	} else {
-		fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)
 	}
 
 	return 0

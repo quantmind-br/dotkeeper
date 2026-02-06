@@ -50,6 +50,7 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
 
 	var tm tea.Model
 
+	// Commands intentionally discarded — window resize produces no async work in our views.
 	tm, _ = m.dashboard.Update(viewMsg)
 	m.dashboard = tm.(views.DashboardModel)
 
@@ -64,6 +65,22 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) {
 
 	tm, _ = m.logs.Update(viewMsg)
 	m.logs = tm.(views.LogsModel)
+}
+
+// refreshCmdForState returns the refresh command for a given view state.
+func (m *Model) refreshCmdForState(state ViewState) tea.Cmd {
+	switch state {
+	case DashboardView:
+		return m.dashboard.Refresh()
+	case BackupListView:
+		return m.backupList.Refresh()
+	case RestoreView:
+		return m.restore.Refresh()
+	case LogsView:
+		return m.logs.LoadHistory()
+	default:
+		return nil
+	}
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -139,14 +156,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				nextIdx := (currentIdx + 1) % len(tabOrder)
 				prevState := m.state
 				m.state = tabOrder[nextIdx]
-				if m.state == BackupListView && prevState != BackupListView {
-					cmds = append(cmds, m.backupList.Refresh())
-				}
-				if m.state == RestoreView && prevState != RestoreView {
-					cmds = append(cmds, m.restore.Refresh())
-				}
-				if m.state == LogsView && prevState != LogsView {
-					cmds = append(cmds, m.logs.LoadHistory())
+				if m.state != prevState {
+					if cmd := m.refreshCmdForState(m.state); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -158,14 +171,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				prevIdx := (currentIdx - 1 + len(tabOrder)) % len(tabOrder)
 				prevState := m.state
 				m.state = tabOrder[prevIdx]
-				if m.state == BackupListView && prevState != BackupListView {
-					cmds = append(cmds, m.backupList.Refresh())
-				}
-				if m.state == RestoreView && prevState != RestoreView {
-					cmds = append(cmds, m.restore.Refresh())
-				}
-				if m.state == LogsView && prevState != LogsView {
-					cmds = append(cmds, m.logs.LoadHistory())
+				if m.state != prevState {
+					if cmd := m.refreshCmdForState(m.state); cmd != nil {
+						cmds = append(cmds, cmd)
+					}
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -173,24 +182,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Number key navigation (only when not in input-consuming state)
 		if !m.isInputActive() {
+			var targetIdx int = -1
 			switch msg.String() {
 			case "1":
-				m.state = tabOrder[0]
-				return m, nil
+				targetIdx = 0
 			case "2":
-				m.state = tabOrder[1]
-				cmds = append(cmds, m.backupList.Refresh())
-				return m, tea.Batch(cmds...)
+				targetIdx = 1
 			case "3":
-				m.state = tabOrder[2]
-				cmds = append(cmds, m.restore.Refresh())
-				return m, tea.Batch(cmds...)
+				targetIdx = 2
 			case "4":
-				m.state = tabOrder[3]
-				return m, nil
+				targetIdx = 3
 			case "5":
-				m.state = tabOrder[4]
-				cmds = append(cmds, m.logs.LoadHistory())
+				targetIdx = 4
+			}
+			if targetIdx >= 0 && targetIdx < len(tabOrder) {
+				m.state = tabOrder[targetIdx]
+				if cmd := m.refreshCmdForState(m.state); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
 				return m, tea.Batch(cmds...)
 			}
 		}

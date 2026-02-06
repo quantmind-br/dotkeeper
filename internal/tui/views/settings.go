@@ -8,14 +8,11 @@ import (
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
-
-// Keep lipgloss import for cursor/prompt styles (component configuration)
 
 type settingsState int
 
@@ -26,6 +23,14 @@ const (
 	stateBrowsingFolders
 	stateEditingSubItem
 	stateFilePickerActive
+)
+
+// pathListType distinguishes between file and folder path lists.
+type pathListType int
+
+const (
+	pathListFiles pathListType = iota
+	pathListFolders
 )
 
 type settingItem struct {
@@ -50,6 +55,10 @@ func (i subSettingItem) Title() string       { return i.title }
 func (i subSettingItem) Description() string { return i.desc }
 func (i subSettingItem) FilterValue() string { return i.title }
 
+type pathDescsMsg struct {
+	descs map[string]string
+}
+
 // SettingsModel represents the settings view
 type SettingsModel struct {
 	config        *config.Config
@@ -62,6 +71,7 @@ type SettingsModel struct {
 	pathCompleter components.PathCompleter
 	status        string
 	errMsg        string
+	pathDescs     map[string]string
 
 	inspecting  bool
 	inspectInfo string
@@ -76,29 +86,18 @@ type SettingsModel struct {
 // NewSettings creates a new settings model
 func NewSettings(cfg *config.Config) SettingsModel {
 	pc := components.NewPathCompleter()
-	pc.Input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
-	pc.Input.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
-	mainList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
-	mainList.SetShowTitle(false)
-	mainList.SetShowHelp(false)
+	mainList := styles.NewMinimalList()
 	mainList.SetShowStatusBar(false)
 	mainList.SetShowPagination(false)
-	mainList.SetFilteringEnabled(false)
 
-	filesList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
-	filesList.SetShowTitle(false)
-	filesList.SetShowHelp(false)
+	filesList := styles.NewMinimalList()
 	filesList.SetShowStatusBar(false)
 	filesList.SetShowPagination(false)
-	filesList.SetFilteringEnabled(false)
 
-	foldersList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
-	foldersList.SetShowTitle(false)
-	foldersList.SetShowHelp(false)
+	foldersList := styles.NewMinimalList()
 	foldersList.SetShowStatusBar(false)
 	foldersList.SetShowPagination(false)
-	foldersList.SetFilteringEnabled(false)
 
 	fp := filepicker.New()
 	home, _ := os.UserHomeDir()
@@ -119,8 +118,8 @@ func NewSettings(cfg *config.Config) SettingsModel {
 		filePicker:    fp,
 	}
 	m.refreshMainList()
-	m.refreshFilesList()
-	m.refreshFoldersList()
+	m.refreshPathList(pathListFiles)
+	m.refreshPathList(pathListFolders)
 	m.resizeLists()
 
 	return m
@@ -128,11 +127,23 @@ func NewSettings(cfg *config.Config) SettingsModel {
 
 // Init initializes the settings view
 func (m SettingsModel) Init() tea.Cmd {
-	return nil
+	return m.scanPathDescs()
 }
 
 // Update handles messages
 func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if descs, ok := msg.(pathDescsMsg); ok {
+		if m.pathDescs == nil {
+			m.pathDescs = make(map[string]string)
+		}
+		for k, v := range descs.descs {
+			m.pathDescs[k] = v
+		}
+		m.refreshPathList(pathListFiles)
+		m.refreshPathList(pathListFolders)
+		return m, nil
+	}
+
 	// Route messages to filepicker when active (for non-standard msgs)
 	if m.state == stateFilePickerActive {
 		switch msg.(type) {
@@ -143,16 +154,28 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.filePicker, cmd = m.filePicker.Update(msg)
 			// Check for file selection
 			if didSelect, path := m.filePicker.DidSelectFile(msg); didSelect {
+				info, statErr := os.Stat(path)
 				if m.filePickerParent == stateBrowsingFiles {
+					if statErr == nil && info.IsDir() {
+						m.errMsg = "Selected path is a directory, not a file"
+						m.state = m.filePickerParent
+						return m, nil
+					}
 					m.config.Files = append(m.config.Files, path)
-					m.refreshFilesList()
+					m.refreshPathList(pathListFiles)
 				} else {
+					if statErr == nil && !info.IsDir() {
+						m.errMsg = "Selected path is a file, not a directory"
+						m.state = m.filePickerParent
+						return m, nil
+					}
 					m.config.Folders = append(m.config.Folders, path)
-					m.refreshFoldersList()
+					m.refreshPathList(pathListFolders)
 				}
+				m.errMsg = ""
 				m.refreshMainList()
 				m.state = m.filePickerParent
-				return m, nil
+				return m, m.scanPathDescs()
 			}
 			return m, cmd
 		}
@@ -178,9 +201,9 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateListNavigating:
 			return m.handleEditModeInput(msg)
 		case stateBrowsingFiles:
-			return m.handleBrowsingFilesInput(msg)
+			return m.handleBrowsingPathsInput(msg, pathListFiles)
 		case stateBrowsingFolders:
-			return m.handleBrowsingFoldersInput(msg)
+			return m.handleBrowsingPathsInput(msg, pathListFolders)
 		case stateFilePickerActive:
 			return m.handleFilePickerInput(msg)
 		}
@@ -250,148 +273,134 @@ func (m SettingsModel) handleEditModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	return m, cmd
 }
 
-func (m SettingsModel) handleBrowsingFilesInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		m.state = stateListNavigating
-		return m, nil
-	case " ":
-		selected, ok := m.filesList.SelectedItem().(subSettingItem)
-		if !ok || selected.isAdd {
-			return m, nil
-		}
-		path := m.config.Files[selected.index]
-		// Toggle in DisabledFiles
-		found := false
-		for i, d := range m.config.DisabledFiles {
-			if d == path {
-				m.config.DisabledFiles = append(m.config.DisabledFiles[:i], m.config.DisabledFiles[i+1:]...)
-				found = true
-				break
-			}
-		}
-		if !found {
-			m.config.DisabledFiles = append(m.config.DisabledFiles, path)
-		}
-		m.refreshFilesList()
-		return m, nil
-	case "i":
-		selected, ok := m.filesList.SelectedItem().(subSettingItem)
-		if !ok || selected.isAdd {
-			return m, nil
-		}
-		path := m.config.Files[selected.index]
-		m.inspecting = true
-		m.inspectInfo = getInspectInfo(path)
-		return m, nil
-	case "enter":
-		selected, ok := m.filesList.SelectedItem().(subSettingItem)
-		if !ok {
-			return m, nil
-		}
-		if selected.isAdd {
-			m.startEditingSubItem(stateBrowsingFiles, len(m.config.Files), "")
-		} else if selected.index >= 0 && selected.index < len(m.config.Files) {
-			m.startEditingSubItem(stateBrowsingFiles, selected.index, m.config.Files[selected.index])
-		}
-		return m, nil
-	case "a":
-		m.startEditingSubItem(stateBrowsingFiles, len(m.config.Files), "")
-		return m, nil
-	case "b":
-		m.filePickerParent = stateBrowsingFiles
-		m.state = stateFilePickerActive
-		return m, m.filePicker.Init()
-	case "d":
-		selected, ok := m.filesList.SelectedItem().(subSettingItem)
-		if !ok || selected.isAdd || selected.index < 0 || selected.index >= len(m.config.Files) {
-			return m, nil
-		}
-		m.config.Files = append(m.config.Files[:selected.index], m.config.Files[selected.index+1:]...)
-		m.refreshFilesList()
-		m.refreshMainList()
-		if selected.index < len(m.filesList.Items()) {
-			m.filesList.Select(selected.index)
-		}
-		return m, nil
-	case "s":
-		m.saveConfig()
-		return m, nil
+func (m *SettingsModel) pathsForType(lt pathListType) []string {
+	if lt == pathListFiles {
+		return m.config.Files
 	}
-
-	// If inspecting, any key dismisses
-	if m.inspecting {
-		m.inspecting = false
-		return m, nil
-	}
-
-	var cmd tea.Cmd
-	m.filesList, cmd = m.filesList.Update(msg)
-	return m, cmd
+	return m.config.Folders
 }
 
-func (m SettingsModel) handleBrowsingFoldersInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *SettingsModel) setPathsForType(lt pathListType, paths []string) {
+	if lt == pathListFiles {
+		m.config.Files = paths
+	} else {
+		m.config.Folders = paths
+	}
+}
+
+func (m *SettingsModel) disabledPathsForType(lt pathListType) []string {
+	if lt == pathListFiles {
+		return m.config.DisabledFiles
+	}
+	return m.config.DisabledFolders
+}
+
+func (m *SettingsModel) setDisabledPathsForType(lt pathListType, paths []string) {
+	if lt == pathListFiles {
+		m.config.DisabledFiles = paths
+	} else {
+		m.config.DisabledFolders = paths
+	}
+}
+
+func (m *SettingsModel) listForType(lt pathListType) *list.Model {
+	if lt == pathListFiles {
+		return &m.filesList
+	}
+	return &m.foldersList
+}
+
+func (m *SettingsModel) browsingStateForType(lt pathListType) settingsState {
+	if lt == pathListFiles {
+		return stateBrowsingFiles
+	}
+	return stateBrowsingFolders
+}
+
+func (m *SettingsModel) addLabel(lt pathListType) string {
+	if lt == pathListFiles {
+		return "[+] Add new file"
+	}
+	return "[+] Add new folder"
+}
+
+func (m SettingsModel) handleBrowsingPathsInput(msg tea.KeyMsg, lt pathListType) (tea.Model, tea.Cmd) {
+	// If inspecting, any key dismisses the inspect overlay
+	if m.inspecting {
+		m.inspecting = false
+		m.inspectInfo = ""
+		return m, nil
+	}
+
+	paths := m.pathsForType(lt)
+	disabledPaths := m.disabledPathsForType(lt)
+	pathList := m.listForType(lt)
+	browsingState := m.browsingStateForType(lt)
+
 	switch msg.String() {
 	case "esc":
 		m.state = stateListNavigating
+		m.inspecting = false
+		m.inspectInfo = ""
 		return m, nil
 	case " ":
-		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
+		selected, ok := pathList.SelectedItem().(subSettingItem)
 		if !ok || selected.isAdd {
 			return m, nil
 		}
-		path := m.config.Folders[selected.index]
-		// Toggle in DisabledFolders
+		path := paths[selected.index]
 		found := false
-		for i, d := range m.config.DisabledFolders {
+		for i, d := range disabledPaths {
 			if d == path {
-				m.config.DisabledFolders = append(m.config.DisabledFolders[:i], m.config.DisabledFolders[i+1:]...)
+				newDisabled := append(disabledPaths[:i], disabledPaths[i+1:]...)
+				m.setDisabledPathsForType(lt, newDisabled)
 				found = true
 				break
 			}
 		}
 		if !found {
-			m.config.DisabledFolders = append(m.config.DisabledFolders, path)
+			m.setDisabledPathsForType(lt, append(disabledPaths, path))
 		}
-		m.refreshFoldersList()
+		m.refreshPathList(lt)
 		return m, nil
 	case "i":
-		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
+		selected, ok := pathList.SelectedItem().(subSettingItem)
 		if !ok || selected.isAdd {
 			return m, nil
 		}
-		path := m.config.Folders[selected.index]
+		path := paths[selected.index]
 		m.inspecting = true
 		m.inspectInfo = getInspectInfo(path)
 		return m, nil
 	case "enter":
-		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
+		selected, ok := pathList.SelectedItem().(subSettingItem)
 		if !ok {
 			return m, nil
 		}
 		if selected.isAdd {
-			m.startEditingSubItem(stateBrowsingFolders, len(m.config.Folders), "")
-		} else if selected.index >= 0 && selected.index < len(m.config.Folders) {
-			m.startEditingSubItem(stateBrowsingFolders, selected.index, m.config.Folders[selected.index])
+			m.startEditingSubItem(browsingState, len(paths), "")
+		} else if selected.index >= 0 && selected.index < len(paths) {
+			m.startEditingSubItem(browsingState, selected.index, paths[selected.index])
 		}
 		return m, nil
 	case "a":
-		m.startEditingSubItem(stateBrowsingFolders, len(m.config.Folders), "")
+		m.startEditingSubItem(browsingState, len(paths), "")
 		return m, nil
 	case "b":
-		m.filePickerParent = stateBrowsingFolders
+		m.filePickerParent = browsingState
 		m.state = stateFilePickerActive
 		return m, m.filePicker.Init()
 	case "d":
-		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
-		if !ok || selected.isAdd || selected.index < 0 || selected.index >= len(m.config.Folders) {
+		selected, ok := pathList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd || selected.index < 0 || selected.index >= len(paths) {
 			return m, nil
 		}
-		m.config.Folders = append(m.config.Folders[:selected.index], m.config.Folders[selected.index+1:]...)
-		m.refreshFoldersList()
+		newPaths := append(paths[:selected.index], paths[selected.index+1:]...)
+		m.setPathsForType(lt, newPaths)
+		m.refreshPathList(lt)
 		m.refreshMainList()
-		if selected.index < len(m.foldersList.Items()) {
-			m.foldersList.Select(selected.index)
+		if selected.index < len(pathList.Items()) {
+			pathList.Select(selected.index)
 		}
 		return m, nil
 	case "s":
@@ -400,7 +409,7 @@ func (m SettingsModel) handleBrowsingFoldersInput(msg tea.KeyMsg) (tea.Model, te
 	}
 
 	var cmd tea.Cmd
-	m.foldersList, cmd = m.foldersList.Update(msg)
+	*pathList, cmd = pathList.Update(msg)
 	return m, cmd
 }
 
@@ -454,24 +463,24 @@ func (m SettingsModel) handleEditingSubItemInput(msg tea.KeyMsg) (tea.Model, tea
 				m.config.Folders = append(m.config.Folders, results...)
 			}
 			m.status = fmt.Sprintf("Added %d paths from glob", len(results))
-			m.refreshFilesList()
-			m.refreshFoldersList()
+			m.refreshPathList(pathListFiles)
+			m.refreshPathList(pathListFolders)
 			m.refreshMainList()
 			m.state = m.subEditParent
 			m.pathCompleter.Input.Blur()
 			m.pathCompleter.Input.SetValue("")
 			m.resizeLists()
-			return m, nil
+			return m, m.scanPathDescs()
 		}
 		m.saveFieldValue(value)
-		m.refreshFilesList()
-		m.refreshFoldersList()
+		m.refreshPathList(pathListFiles)
+		m.refreshPathList(pathListFolders)
 		m.refreshMainList()
 		m.state = m.subEditParent
 		m.pathCompleter.Input.Blur()
 		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
-		return m, nil
+		return m, m.scanPathDescs()
 
 	default:
 		var cmd tea.Cmd
@@ -616,60 +625,56 @@ func (m *SettingsModel) refreshMainList() {
 	m.mainList.Select(selected)
 }
 
-func (m *SettingsModel) refreshFilesList() {
+func (m *SettingsModel) refreshPathList(lt pathListType) {
+	paths := m.pathsForType(lt)
+	disabledPaths := m.disabledPathsForType(lt)
+	pathList := m.listForType(lt)
+
 	disabledSet := make(map[string]bool)
-	for _, d := range m.config.DisabledFiles {
+	for _, d := range disabledPaths {
 		disabledSet[d] = true
 	}
 
-	items := make([]list.Item, 0, len(m.config.Files)+1)
-	for i, filePath := range m.config.Files {
-		desc := pathutil.GetPathDesc(filePath)
-		isDisabled := disabledSet[filePath]
+	items := make([]list.Item, 0, len(paths)+1)
+	for i, p := range paths {
+		desc := "scanning..."
+		if cached, ok := m.pathDescs[p]; ok {
+			desc = cached
+		}
+		isDisabled := disabledSet[p]
 		if isDisabled {
 			desc = "[disabled] " + desc
 		}
-		items = append(items, subSettingItem{title: filePath, desc: desc, index: i, disabled: isDisabled})
+		items = append(items, subSettingItem{title: p, desc: desc, index: i, disabled: isDisabled})
 	}
-	items = append(items, subSettingItem{title: "[+] Add new file", desc: "", index: len(m.config.Files), isAdd: true})
+	items = append(items, subSettingItem{title: m.addLabel(lt), desc: "", index: len(paths), isAdd: true})
 
-	selected := m.filesList.Index()
-	m.filesList.SetItems(items)
+	selected := pathList.Index()
+	pathList.SetItems(items)
 	if selected >= len(items) {
 		selected = len(items) - 1
 	}
 	if selected < 0 {
 		selected = 0
 	}
-	m.filesList.Select(selected)
+	pathList.Select(selected)
 }
 
-func (m *SettingsModel) refreshFoldersList() {
-	disabledSet := make(map[string]bool)
-	for _, d := range m.config.DisabledFolders {
-		disabledSet[d] = true
-	}
-
-	items := make([]list.Item, 0, len(m.config.Folders)+1)
-	for i, folderPath := range m.config.Folders {
-		desc := pathutil.GetPathDesc(folderPath)
-		isDisabled := disabledSet[folderPath]
-		if isDisabled {
-			desc = "[disabled] " + desc
+func (m SettingsModel) scanPathDescs() tea.Cmd {
+	files := make([]string, len(m.config.Files))
+	copy(files, m.config.Files)
+	folders := make([]string, len(m.config.Folders))
+	copy(folders, m.config.Folders)
+	return func() tea.Msg {
+		descs := make(map[string]string, len(files)+len(folders))
+		for _, p := range files {
+			descs[p] = pathutil.GetPathDesc(p)
 		}
-		items = append(items, subSettingItem{title: folderPath, desc: desc, index: i, disabled: isDisabled})
+		for _, p := range folders {
+			descs[p] = pathutil.GetPathDesc(p)
+		}
+		return pathDescsMsg{descs: descs}
 	}
-	items = append(items, subSettingItem{title: "[+] Add new folder", desc: "", index: len(m.config.Folders), isAdd: true})
-
-	selected := m.foldersList.Index()
-	m.foldersList.SetItems(items)
-	if selected >= len(items) {
-		selected = len(items) - 1
-	}
-	if selected < 0 {
-		selected = 0
-	}
-	m.foldersList.Select(selected)
 }
 
 func (m *SettingsModel) resizeLists() {
@@ -699,9 +704,9 @@ func (m *SettingsModel) resizeLists() {
 func (m SettingsModel) View() string {
 	var b strings.Builder
 
-	styles := styles.DefaultStyles()
+	st := styles.DefaultStyles()
 
-	b.WriteString(styles.Title.Render("Settings") + "\n\n")
+	b.WriteString(st.Title.Render("Settings") + "\n\n")
 
 	helpText := ""
 	switch m.state {
@@ -713,11 +718,11 @@ func (m SettingsModel) View() string {
 		b.WriteString(m.mainList.View())
 		helpText = "Enter: Save field | Esc: Cancel"
 	case stateBrowsingFiles:
-		b.WriteString(styles.Subtitle.Render("Files") + "\n")
+		b.WriteString(st.Subtitle.Render("Files") + "\n")
 		b.WriteString(m.filesList.View())
 		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateBrowsingFolders:
-		b.WriteString(styles.Subtitle.Render("Folders") + "\n")
+		b.WriteString(st.Subtitle.Render("Folders") + "\n")
 		b.WriteString(m.foldersList.View())
 		helpText = "↑/↓: Navigate | Enter: Edit | a: Type path | b: Browse | d: Delete | s: Save | Esc: Back"
 	case stateEditingSubItem:
@@ -727,7 +732,7 @@ func (m SettingsModel) View() string {
 			title = "Editing Folder"
 			listView = m.foldersList.View()
 		}
-		b.WriteString(styles.Subtitle.Render(title) + "\n")
+		b.WriteString(st.Subtitle.Render(title) + "\n")
 		b.WriteString("Value: " + m.pathCompleter.View() + "\n\n")
 		b.WriteString(listView)
 		helpText = "Enter: Save item | Esc: Cancel"
@@ -736,14 +741,14 @@ func (m SettingsModel) View() string {
 		if m.filePickerParent == stateBrowsingFolders {
 			title = "Browse Folders"
 		}
-		b.WriteString(styles.Subtitle.Render(title) + "\n")
+		b.WriteString(st.Subtitle.Render(title) + "\n")
 		b.WriteString(m.filePicker.View())
 		helpText = "Enter: Select | ↑/↓: Navigate | Esc: Cancel"
 	}
 
 	if m.inspecting && m.inspectInfo != "" {
 		b.WriteString("\n")
-		b.WriteString(styles.Card.Render(m.inspectInfo))
+		b.WriteString(st.Card.Render(m.inspectInfo))
 		b.WriteString("\n")
 	}
 
@@ -795,7 +800,8 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 	}
 }
 
-// IsEditing returns true — settings is always in an interactive mode.
+// IsEditing returns true when the user is actively editing a field or browsing,
+// so that global tab navigation is only blocked during those interactions.
 func (m SettingsModel) IsEditing() bool {
-	return true
+	return m.state != stateListNavigating
 }

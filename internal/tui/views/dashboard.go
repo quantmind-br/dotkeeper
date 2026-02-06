@@ -172,7 +172,7 @@ type statusMsg struct {
 
 func (m DashboardModel) refreshStatus() tea.Cmd {
 	return func() tea.Msg {
-		result := pathutil.ScanPaths(m.config.Files, m.config.Folders, m.config.Exclude)
+		result := pathutil.ScanPaths(m.config.ActiveFiles(), m.config.ActiveFolders(), m.config.Exclude)
 
 		var lastBackup time.Time
 		dir := pathutil.ExpandHome(m.config.BackupDir)
@@ -191,6 +191,10 @@ func (m DashboardModel) refreshStatus() tea.Cmd {
 			brokenPaths: len(result.BrokenPaths),
 		}
 	}
+}
+
+func (m DashboardModel) Refresh() tea.Cmd {
+	return m.refreshStatus()
 }
 
 func (m DashboardModel) HelpBindings() []HelpEntry {

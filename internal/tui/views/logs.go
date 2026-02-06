@@ -72,9 +72,7 @@ func NewLogs(cfg *config.Config, stores ...*history.Store) LogsModel {
 		store = stores[0]
 	}
 
-	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
-	l.SetShowTitle(false) // We render our own title
-	l.SetShowHelp(false)
+	l := styles.NewMinimalList()
 
 	return LogsModel{
 		config: cfg,

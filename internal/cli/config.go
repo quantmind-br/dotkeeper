@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/diogo/dotkeeper/internal/config"
@@ -202,13 +201,4 @@ func normalizeKey(key string) string {
 	key = strings.ToLower(key)
 	key = strings.ReplaceAll(key, "-", "_")
 	return key
-}
-
-// getFieldValue gets a field value from a struct using reflection
-func getFieldValue(v reflect.Value, fieldName string) (interface{}, error) {
-	field := v.FieldByName(fieldName)
-	if !field.IsValid() {
-		return nil, fmt.Errorf("field not found: %s", fieldName)
-	}
-	return field.Interface(), nil
 }

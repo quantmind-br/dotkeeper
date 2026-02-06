@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 )
 
@@ -31,6 +32,8 @@ type PathCompleter struct {
 
 func NewPathCompleter() PathCompleter {
 	ti := textinput.New()
+	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 	return PathCompleter{Input: ti}
 }
 

@@ -164,7 +164,7 @@ func TestValidateConfig(t *testing.T) {
 				Schedule:      "0 2 * * *",
 				Notifications: true,
 			},
-			wantErr: true,
+			wantErr: false, // GitRemote is optional (CQ-015)
 		},
 		{
 			name: "no files or folders",

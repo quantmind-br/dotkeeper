@@ -10,12 +10,24 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/restore"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
+)
+
+// restorePhase represents the current phase of the restore workflow.
+type restorePhase int
+
+const (
+	phaseBackupList  restorePhase = iota // 0: select backup
+	phasePassword                        // 1: enter password
+	phaseFileSelect                      // 2: select files
+	phaseRestoring                       // 3: restoring in progress
+	phaseDiffPreview                     // 4: diff preview
+	phaseResults                         // 5: results display
 )
 
 // RestoreModel represents the restore view
@@ -25,7 +37,7 @@ type RestoreModel struct {
 	width            int
 	height           int
 	backupList       list.Model
-	phase            int // 0=backup list, 1=password, 2=file select, 3=restoring, 4=diff preview, 5=results
+	phase            restorePhase
 	selectedBackup   string
 	password         string // validated password for restore
 	passwordInput    textinput.Model
@@ -92,23 +104,11 @@ func (i fileItem) FilterValue() string {
 
 // NewRestore creates a new restore model
 func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
-	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
-	l.Title = "Backups"
-	l.SetShowTitle(false)
-	l.SetShowHelp(false)
+	l := styles.NewMinimalList()
 
-	ti := textinput.New()
-	ti.Placeholder = "Enter password for decryption"
-	ti.EchoMode = textinput.EchoPassword
-	ti.EchoCharacter = '•'
-	ti.Width = 40
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	ti := components.NewPasswordInput("Enter password for decryption")
 
-	fl := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
-	fl.Title = "Files"
-	fl.SetShowTitle(false)
-	fl.SetShowHelp(false)
+	fl := styles.NewMinimalList()
 
 	vp := viewport.New(0, 0)
 
@@ -120,7 +120,7 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 		fileList:      fl,
 		selectedFiles: make(map[string]bool),
 		viewport:      vp,
-		phase:         0,
+		phase:         phaseBackupList,
 	}
 }
 
@@ -137,25 +137,7 @@ func (m RestoreModel) Refresh() tea.Cmd {
 // refreshBackups scans the backup directory and loads available backups
 func (m RestoreModel) refreshBackups() tea.Cmd {
 	return func() tea.Msg {
-		dir := pathutil.ExpandHome(m.config.BackupDir)
-		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
-
-		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
-			paths[i], paths[j] = paths[j], paths[i]
-		}
-
-		items := make([]list.Item, 0, len(paths))
-		for _, p := range paths {
-			if info, err := os.Stat(p); err == nil && info != nil {
-				name := strings.TrimSuffix(filepath.Base(p), ".tar.gz.enc")
-				items = append(items, backupItem{
-					name: name,
-					size: info.Size(),
-					date: info.ModTime().Format("2006-01-02 15:04"),
-				})
-			}
-		}
-		return backupsLoadedMsg(items)
+		return backupsLoadedMsg(LoadBackupItems(m.config.BackupDir))
 	}
 }
 
@@ -246,6 +228,139 @@ func (m RestoreModel) getSelectedFilePaths() []string {
 	return paths
 }
 
+func (m RestoreModel) handleBackupListKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		if item := m.backupList.SelectedItem(); item != nil {
+			selected := item.(backupItem)
+			backupPath := filepath.Join(pathutil.ExpandHome(m.config.BackupDir), selected.name+".tar.gz.enc")
+			m.selectedBackup = backupPath
+			m.passwordInput.SetValue("")
+			m.restoreError = ""
+			m.phase = phasePassword
+			m.passwordInput.Focus()
+			return m, textinput.Blink
+		}
+	case "r":
+		return m, m.refreshBackups()
+	default:
+		var cmd tea.Cmd
+		m.backupList, cmd = m.backupList.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m RestoreModel) handlePasswordKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		if m.passwordInput.Value() != "" {
+			m.restoreStatus = "Validating password..."
+			m.restoreError = ""
+			return m, m.validatePassword(m.selectedBackup, m.passwordInput.Value())
+		}
+	case "esc":
+		m.phase = phaseBackupList
+		m.passwordInput.SetValue("")
+		m.passwordAttempts = 0
+		m.restoreError = ""
+		m.passwordInput.Blur()
+		return m, nil
+	default:
+		var cmd tea.Cmd
+		m.passwordInput, cmd = m.passwordInput.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m RestoreModel) handleFileSelectKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) {
+	switch msg.String() {
+	case " ":
+		if item := m.fileList.SelectedItem(); item != nil {
+			fi := item.(fileItem)
+			m.selectedFiles[fi.path] = !m.selectedFiles[fi.path]
+			m.updateFileListSelection()
+		}
+	case "a":
+		for path := range m.selectedFiles {
+			m.selectedFiles[path] = true
+		}
+		m.updateFileListSelection()
+	case "n":
+		for path := range m.selectedFiles {
+			m.selectedFiles[path] = false
+		}
+		m.updateFileListSelection()
+	case "d":
+		if item := m.fileList.SelectedItem(); item != nil {
+			fi := item.(fileItem)
+			m.restoreStatus = "Loading diff..."
+			m.restoreError = ""
+			return m, m.loadDiff(fi.path)
+		}
+	case "enter":
+		selectedCount := m.countSelectedFiles()
+		if selectedCount == 0 {
+			m.restoreError = "Select at least one file"
+		} else {
+			m.phase = phaseRestoring
+			m.restoreStatus = fmt.Sprintf("Restoring %d files...", selectedCount)
+			m.restoreError = ""
+			return m, m.runRestore()
+		}
+	case "esc":
+		m.phase = phaseBackupList
+		m.selectedFiles = make(map[string]bool)
+		m.password = ""
+		m.restoreError = ""
+		m.restoreStatus = ""
+		m.passwordInput.SetValue("")
+		m.passwordInput.Blur()
+	default:
+		var cmd tea.Cmd
+		m.fileList, cmd = m.fileList.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m RestoreModel) handleDiffPreviewKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		m.viewport.LineDown(1)
+	case "k", "up":
+		m.viewport.LineUp(1)
+	case "g":
+		m.viewport.GotoTop()
+	case "G":
+		m.viewport.GotoBottom()
+	case "esc":
+		m.phase = phaseFileSelect
+		m.currentDiff = ""
+		m.diffFile = ""
+		m.restoreStatus = ""
+		m.restoreError = ""
+	default:
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m RestoreModel) handleResultsKey() (RestoreModel, tea.Cmd) {
+	m.phase = phaseBackupList
+	m.restoreResult = nil
+	m.selectedFiles = make(map[string]bool)
+	m.password = ""
+	m.restoreError = ""
+	m.restoreStatus = ""
+	m.passwordInput.SetValue("")
+	m.passwordInput.Blur()
+	return m, m.refreshBackups()
+}
+
 // Update handles messages
 func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -265,7 +380,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case passwordValidMsg:
 		m.password = m.passwordInput.Value()
-		m.phase = 2
+		m.phase = phaseFileSelect
 		m.restoreStatus = "Loading files..."
 		m.restoreError = ""
 		m.passwordAttempts = 0
@@ -275,7 +390,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.passwordAttempts++
 		if m.passwordAttempts >= 3 {
 			m.restoreError = "Too many failed attempts"
-			m.phase = 0
+			m.phase = phaseBackupList
 			m.passwordAttempts = 0
 			m.passwordInput.SetValue("")
 			m.passwordInput.Blur()
@@ -307,7 +422,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffFile = msg.file
 		m.viewport.SetContent(msg.diff)
 		m.viewport.GotoTop()
-		m.phase = 4
+		m.phase = phaseDiffPreview
 		m.restoreStatus = ""
 		m.restoreError = ""
 		return m, nil
@@ -319,7 +434,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case restoreCompleteMsg:
 		m.restoreResult = msg.result
-		m.phase = 5
+		m.phase = phaseResults
 		m.restoreStatus = ""
 		m.restoreError = ""
 		if m.store != nil {
@@ -330,7 +445,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case restoreErrorMsg:
 		m.restoreError = fmt.Sprintf("Restore failed: %v", msg.err)
 		m.restoreResult = nil
-		m.phase = 5
+		m.phase = phaseResults
 		m.restoreStatus = ""
 		if m.store != nil {
 			_ = m.store.Append(history.EntryFromRestoreError(msg.err, m.selectedBackup))
@@ -338,125 +453,23 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if m.phase == 0 {
-			switch msg.String() {
-			case "enter":
-				if item := m.backupList.SelectedItem(); item != nil {
-					selected := item.(backupItem)
-					backupPath := filepath.Join(pathutil.ExpandHome(m.config.BackupDir), selected.name+".tar.gz.enc")
-					m.selectedBackup = backupPath
-					m.passwordInput.SetValue("")
-					m.restoreError = ""
-					m.phase = 1
-					m.passwordInput.Focus()
-					return m, textinput.Blink
-				}
-			case "r":
-				return m, m.refreshBackups()
-			default:
-				var cmd tea.Cmd
-				m.backupList, cmd = m.backupList.Update(msg)
-				return m, cmd
-			}
-		} else if m.phase == 1 {
-			switch msg.String() {
-			case "enter":
-				if m.passwordInput.Value() != "" {
-					m.restoreStatus = "Validating password..."
-					m.restoreError = ""
-					return m, m.validatePassword(m.selectedBackup, m.passwordInput.Value())
-				}
-			case "esc":
-				m.phase = 0
-				m.passwordInput.SetValue("")
-				m.passwordAttempts = 0
-				m.restoreError = ""
-				m.passwordInput.Blur()
-				return m, nil
-			default:
-				var cmd tea.Cmd
-				m.passwordInput, cmd = m.passwordInput.Update(msg)
-				return m, cmd
-			}
-		} else if m.phase == 2 {
-			switch msg.String() {
-			case " ":
-				if item := m.fileList.SelectedItem(); item != nil {
-					fi := item.(fileItem)
-					m.selectedFiles[fi.path] = !m.selectedFiles[fi.path]
-					m.updateFileListSelection()
-				}
-			case "a":
-				for path := range m.selectedFiles {
-					m.selectedFiles[path] = true
-				}
-				m.updateFileListSelection()
-			case "n":
-				for path := range m.selectedFiles {
-					m.selectedFiles[path] = false
-				}
-				m.updateFileListSelection()
-			case "d":
-				if item := m.fileList.SelectedItem(); item != nil {
-					fi := item.(fileItem)
-					m.restoreStatus = "Loading diff..."
-					m.restoreError = ""
-					return m, m.loadDiff(fi.path)
-				}
-			case "enter":
-				selectedCount := m.countSelectedFiles()
-				if selectedCount == 0 {
-					m.restoreError = "Select at least one file"
-				} else {
-					m.phase = 3
-					m.restoreStatus = fmt.Sprintf("Restoring %d files...", selectedCount)
-					m.restoreError = ""
-					return m, m.runRestore()
-				}
-			case "esc":
-				m.phase = 0
-				m.selectedFiles = make(map[string]bool)
-				m.password = ""
-				m.restoreError = ""
-				m.restoreStatus = ""
-				m.passwordInput.SetValue("")
-				m.passwordInput.Blur()
-			default:
-				var cmd tea.Cmd
-				m.fileList, cmd = m.fileList.Update(msg)
-				return m, cmd
-			}
-		} else if m.phase == 4 {
-			switch msg.String() {
-			case "j", "down":
-				m.viewport.LineDown(1)
-			case "k", "up":
-				m.viewport.LineUp(1)
-			case "g":
-				m.viewport.GotoTop()
-			case "G":
-				m.viewport.GotoBottom()
-			case "esc":
-				m.phase = 2
-				m.currentDiff = ""
-				m.diffFile = ""
-				m.restoreStatus = ""
-				m.restoreError = ""
-			default:
-				var cmd tea.Cmd
-				m.viewport, cmd = m.viewport.Update(msg)
-				return m, cmd
-			}
-		} else if m.phase == 5 {
-			m.phase = 0
-			m.restoreResult = nil
-			m.selectedFiles = make(map[string]bool)
-			m.password = ""
-			m.restoreError = ""
-			m.restoreStatus = ""
-			m.passwordInput.SetValue("")
-			m.passwordInput.Blur()
-			return m, m.refreshBackups()
+		var cmd tea.Cmd
+		switch m.phase {
+		case phaseBackupList:
+			m, cmd = m.handleBackupListKey(msg)
+			return m, cmd
+		case phasePassword:
+			m, cmd = m.handlePasswordKey(msg)
+			return m, cmd
+		case phaseFileSelect:
+			m, cmd = m.handleFileSelectKey(msg)
+			return m, cmd
+		case phaseDiffPreview:
+			m, cmd = m.handleDiffPreviewKey(msg)
+			return m, cmd
+		case phaseResults:
+			m, cmd = m.handleResultsKey()
+			return m, cmd
 		}
 	}
 
@@ -470,7 +483,7 @@ func (m RestoreModel) View() string {
 	st := styles.DefaultStyles()
 
 	// Phase 0: Backup list selection
-	if m.phase == 0 {
+	if m.phase == phaseBackupList {
 		s.WriteString(m.backupList.View())
 		s.WriteString("\n")
 		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "↑/↓: navigate | Enter: select | r: refresh"))
@@ -478,7 +491,7 @@ func (m RestoreModel) View() string {
 	}
 
 	// Phase 1: Password entry
-	if m.phase == 1 {
+	if m.phase == phasePassword {
 		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
@@ -487,7 +500,7 @@ func (m RestoreModel) View() string {
 	}
 
 	// Phase 2: File selection
-	if m.phase == 2 {
+	if m.phase == phaseFileSelect {
 		s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
 
 		selectedCount := m.countSelectedFiles()
@@ -501,14 +514,14 @@ func (m RestoreModel) View() string {
 	}
 
 	// Phase 3: Restoring
-	if m.phase == 3 {
+	if m.phase == phaseRestoring {
 		s.WriteString(st.Title.Render("Restoring...") + "\n\n")
 		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Please wait..."))
 		return s.String()
 	}
 
 	// Phase 4: Diff preview
-	if m.phase == 4 {
+	if m.phase == phaseDiffPreview {
 		s.WriteString(st.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
@@ -522,7 +535,7 @@ func (m RestoreModel) View() string {
 	}
 
 	// Phase 5: Results
-	if m.phase == 5 {
+	if m.phase == phaseResults {
 		s.WriteString(st.Title.Render("Restore Complete") + "\n\n")
 
 		if m.restoreError != "" {
@@ -568,18 +581,18 @@ func (m RestoreModel) View() string {
 
 func (m RestoreModel) HelpBindings() []HelpEntry {
 	switch m.phase {
-	case 0:
+	case phaseBackupList:
 		return []HelpEntry{
 			{"Enter", "Select backup"},
 			{"r", "Refresh"},
 			{"↑/↓", "Navigate"},
 		}
-	case 1:
+	case phasePassword:
 		return []HelpEntry{
 			{"Enter", "Submit password"},
 			{"Esc", "Back"},
 		}
-	case 2:
+	case phaseFileSelect:
 		return []HelpEntry{
 			{"Space", "Toggle file"},
 			{"a", "Select all"},
@@ -588,13 +601,13 @@ func (m RestoreModel) HelpBindings() []HelpEntry {
 			{"Enter", "Restore"},
 			{"Esc", "Back"},
 		}
-	case 4:
+	case phaseDiffPreview:
 		return []HelpEntry{
 			{"j/k", "Scroll"},
 			{"g/G", "Top/Bottom"},
 			{"Esc", "Back"},
 		}
-	case 5:
+	case phaseResults:
 		return []HelpEntry{
 			{"any key", "Continue"},
 		}
@@ -605,5 +618,5 @@ func (m RestoreModel) HelpBindings() []HelpEntry {
 
 // IsInputActive returns true when the restore view is in a phase that consumes keyboard input.
 func (m RestoreModel) IsInputActive() bool {
-	return m.phase == 1
+	return m.phase == phasePassword
 }

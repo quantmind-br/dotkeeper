@@ -38,8 +38,9 @@ func Backup(cfg *config.Config, password string) (*BackupResult, error) {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	// Collect all files
-	files, err := CollectFiles(append(cfg.Files, cfg.Folders...))
+	// Collect all files using active (non-disabled) paths with exclusion patterns
+	allPaths := append(cfg.ActiveFiles(), cfg.ActiveFolders()...)
+	files, err := CollectFiles(allPaths, cfg.Exclude)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect files: %w", err)
 	}

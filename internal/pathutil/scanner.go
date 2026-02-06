@@ -63,11 +63,13 @@ func ScanPaths(files, folders, exclude []string) ScanResult {
 			result.TotalSize += info.Size()
 		} else {
 			stat.Exists = true
-			_ = filepath.Walk(expanded, func(path string, fi os.FileInfo, err error) error {
+			walkErrors := 0
+			_ = filepath.WalkDir(expanded, func(path string, d os.DirEntry, err error) error {
 				if err != nil {
+					walkErrors++
 					return nil
 				}
-				if !fi.IsDir() {
+				if !d.IsDir() {
 					baseName := filepath.Base(path)
 					excluded := false
 					for _, pat := range exclude {
@@ -77,14 +79,21 @@ func ScanPaths(files, folders, exclude []string) ScanResult {
 						}
 					}
 					if !excluded {
-						stat.FileCount++
-						stat.Size += fi.Size()
-						result.TotalFiles++
-						result.TotalSize += fi.Size()
+						if info, err := d.Info(); err == nil {
+							stat.FileCount++
+							stat.Size += info.Size()
+							result.TotalFiles++
+							result.TotalSize += info.Size()
+						} else {
+							walkErrors++
+						}
 					}
 				}
 				return nil
 			})
+			if walkErrors > 0 {
+				result.BrokenPaths = append(result.BrokenPaths, f)
+			}
 		}
 		result.PathStats = append(result.PathStats, stat)
 	}
@@ -121,10 +130,12 @@ func GetPathDesc(path string) string {
 	if info.IsDir() {
 		count := 0
 		var size int64
-		_ = filepath.Walk(expanded, func(_ string, fi os.FileInfo, _ error) error {
-			if fi != nil && !fi.IsDir() {
-				count++
-				size += fi.Size()
+		_ = filepath.WalkDir(expanded, func(_ string, d os.DirEntry, _ error) error {
+			if d != nil && !d.IsDir() {
+				if info, err := d.Info(); err == nil {
+					count++
+					size += info.Size()
+				}
 			}
 			return nil
 		})

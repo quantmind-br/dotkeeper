@@ -203,7 +203,14 @@ func TestBackupCleanupOnFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 	backupDir := filepath.Join(tmpDir, "backups")
 
-	// Create test file
+	// Isolate TMPDIR so os.CreateTemp inside Backup() writes here,
+	// not to the global /tmp where parallel tests leave temp files.
+	isolatedTmp := filepath.Join(tmpDir, "tmp")
+	if err := os.Mkdir(isolatedTmp, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", isolatedTmp)
+
 	file1 := filepath.Join(tmpDir, "file1.txt")
 	if err := os.WriteFile(file1, []byte("content"), 0644); err != nil {
 		t.Fatal(err)
@@ -215,15 +222,11 @@ func TestBackupCleanupOnFailure(t *testing.T) {
 		Folders:   []string{},
 	}
 
-	// Use empty password to potentially cause issues
 	password := ""
 
-	// Run backup (may or may not fail, but should not leave temp files)
 	_, _ = Backup(cfg, password)
 
-	// Check for leftover temp files
-	tempDir := os.TempDir()
-	entries, err := os.ReadDir(tempDir)
+	entries, err := os.ReadDir(isolatedTmp)
 	if err != nil {
 		t.Fatalf("Failed to read temp dir: %v", err)
 	}

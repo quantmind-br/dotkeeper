@@ -21,7 +21,7 @@ func TestCollectFiles_Basic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{file1, file2})
+	files, err := CollectFiles([]string{file1, file2}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles failed: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestCollectFiles_WithSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{link})
+	files, err := CollectFiles([]string{link}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles failed: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestCollectFiles_CircularSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{link1})
+	files, err := CollectFiles([]string{link1}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles should not fail on circular symlinks: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestCollectFiles_UnreadableFile(t *testing.T) {
 	}
 	defer os.Chmod(unreadable, 0644) // Cleanup
 
-	files, err := CollectFiles([]string{unreadable})
+	files, err := CollectFiles([]string{unreadable}, nil)
 
 	// Should not fail, just skip unreadable file
 	if err != nil {
@@ -142,7 +142,7 @@ func TestCollectFiles_Directory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{subDir})
+	files, err := CollectFiles([]string{subDir}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestCollectFiles_ExpandHome(t *testing.T) {
 	}
 
 	pathWithTilde := filepath.Join("~", relPath)
-	files, err := CollectFiles([]string{pathWithTilde})
+	files, err := CollectFiles([]string{pathWithTilde}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles failed: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestCollectFiles_SymlinkChain(t *testing.T) {
 		prev = link
 	}
 
-	files, err := CollectFiles([]string{prev})
+	files, err := CollectFiles([]string{prev}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles should not fail: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestCollectFiles_DuplicatePathsViaSymlinks(t *testing.T) {
 	os.Symlink(realDir, link1)
 	os.Symlink(realDir, link2)
 
-	files, err := CollectFiles([]string{link1, link2})
+	files, err := CollectFiles([]string{link1, link2}, nil)
 	if err != nil {
 		t.Fatalf("CollectFiles failed: %v", err)
 	}
@@ -246,5 +246,87 @@ func TestCollectFiles_DuplicatePathsViaSymlinks(t *testing.T) {
 		if f.LinkTarget == "" {
 			t.Errorf("Expected LinkTarget for %s", f.Path)
 		}
+	}
+}
+
+func TestCollectFilesWithExclusions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tmpDir, "a.txt"), []byte("a"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "b.log"), []byte("b"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "c.txt"), []byte("c"), 0644)
+	os.MkdirAll(filepath.Join(tmpDir, "sub"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "sub", "d.log"), []byte("d"), 0644)
+
+	files, err := CollectFiles([]string{tmpDir}, []string{"*.log"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f.Path, ".log") {
+			t.Errorf("expected .log files to be excluded, found %s", f.Path)
+		}
+	}
+	if len(files) != 2 {
+		t.Errorf("expected 2 files, got %d", len(files))
+	}
+}
+
+func TestCollectFilesExcludeDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tmpDir, "a.txt"), []byte("a"), 0644)
+	os.MkdirAll(filepath.Join(tmpDir, "node_modules"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "node_modules", "b.js"), []byte("b"), 0644)
+
+	files, err := CollectFiles([]string{tmpDir}, []string{"node_modules/"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Errorf("expected 1 file, got %d", len(files))
+	}
+}
+
+func TestCollectFilesNoExclusions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tmpDir, "a.txt"), []byte("a"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "b.txt"), []byte("b"), 0644)
+
+	files, err := CollectFiles([]string{tmpDir}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 2 {
+		t.Errorf("expected 2 files, got %d", len(files))
+	}
+}
+
+func TestShouldExclude(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		baseName string
+		isDir    bool
+		patterns []string
+		want     bool
+	}{
+		{"empty patterns", "/foo/bar.log", "bar.log", false, nil, false},
+		{"match base name", "/foo/bar.log", "bar.log", false, []string{"*.log"}, true},
+		{"no match", "/foo/bar.txt", "bar.txt", false, []string{"*.log"}, false},
+		{"dir pattern on dir", "/foo/node_modules", "node_modules", true, []string{"node_modules/"}, true},
+		{"dir pattern on file (should fail if match)", "/foo/node_modules", "node_modules", false, []string{"node_modules/"}, false},
+		{"empty pattern skipped", "/foo/bar.log", "bar.log", false, []string{""}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := shouldExclude(tt.path, tt.baseName, tt.isDir, tt.patterns)
+			if got != tt.want {
+				t.Errorf("shouldExclude(%q, %q, %v, %v) = %v, want %v",
+					tt.path, tt.baseName, tt.isDir, tt.patterns, got, tt.want)
+			}
+		})
 	}
 }

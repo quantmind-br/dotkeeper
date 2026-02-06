@@ -24,7 +24,7 @@ func TestCreateArchive_Basic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{file1, file2})
+	files, err := CollectFiles([]string{file1, file2}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestCreateArchive_PreservesPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{file})
+	files, err := CollectFiles([]string{file}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestCreateArchive_PreservesTimestamps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{file})
+	files, err := CollectFiles([]string{file}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestCreateArchive_Streaming(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, err := CollectFiles([]string{largeFile})
+	files, err := CollectFiles([]string{largeFile}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

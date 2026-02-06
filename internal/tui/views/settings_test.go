@@ -68,15 +68,19 @@ func TestSettingsViewShowsValues(t *testing.T) {
 func TestSettingsIsEditingByState(t *testing.T) {
 	model := NewSettings(testSettingsConfig())
 
-	states := []settingsState{
-		stateListNavigating,
+	model.state = stateListNavigating
+	if model.IsEditing() {
+		t.Fatalf("expected IsEditing false in stateListNavigating")
+	}
+
+	editingStates := []settingsState{
 		stateEditingField,
 		stateBrowsingFiles,
 		stateBrowsingFolders,
 		stateEditingSubItem,
 	}
 
-	for _, st := range states {
+	for _, st := range editingStates {
 		model.state = st
 		if !model.IsEditing() {
 			t.Fatalf("expected IsEditing true in state %v", st)

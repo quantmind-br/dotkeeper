@@ -9,25 +9,13 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
-
-type backupItem struct {
-	name string
-	size int64
-	date string
-}
-
-func (i backupItem) Title() string       { return i.name }
-func (i backupItem) Description() string { return fmt.Sprintf("%s - %d bytes", i.date, i.size) }
-func (i backupItem) FilterValue() string { return i.name }
-
-type backupsLoadedMsg []list.Item
 
 type BackupSuccessMsg struct {
 	Result *backup.BackupResult
@@ -55,17 +43,9 @@ type BackupListModel struct {
 }
 
 func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
-	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
-	l.SetShowTitle(false)
-	l.SetShowHelp(false)
+	l := styles.NewMinimalList()
 
-	ti := textinput.New()
-	ti.Placeholder = "Enter password for encryption"
-	ti.EchoMode = textinput.EchoPassword
-	ti.EchoCharacter = '•'
-	ti.Width = 40
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	ti := components.NewPasswordInput("Enter password for encryption")
 
 	return BackupListModel{
 		config:        cfg,
@@ -81,25 +61,7 @@ func (m BackupListModel) Init() tea.Cmd {
 
 func (m BackupListModel) Refresh() tea.Cmd {
 	return func() tea.Msg {
-		dir := pathutil.ExpandHome(m.config.BackupDir)
-		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
-
-		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
-			paths[i], paths[j] = paths[j], paths[i]
-		}
-
-		items := make([]list.Item, 0, len(paths))
-		for _, p := range paths {
-			if info, err := os.Stat(p); err == nil && info != nil {
-				name := strings.TrimSuffix(filepath.Base(p), ".tar.gz.enc")
-				items = append(items, backupItem{
-					name: name,
-					size: info.Size(),
-					date: info.ModTime().Format("2006-01-02 15:04"),
-				})
-			}
-		}
-		return backupsLoadedMsg(items)
+		return backupsLoadedMsg(LoadBackupItems(m.config.BackupDir))
 	}
 }
 

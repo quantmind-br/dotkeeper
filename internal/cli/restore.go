@@ -41,6 +41,9 @@ func RestoreCommand(args []string) int {
 		return 1
 	}
 
+	// Create history store once (best-effort)
+	store, storeErr := history.NewStore()
+
 	// Get backup name
 	backupName := ""
 	if fs.NArg() > 0 {
@@ -86,7 +89,7 @@ func RestoreCommand(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Restore failed: %v\n", err)
 		// Log error to history (best-effort, don't fail if logging fails)
-		if store, storeErr := history.NewStore(); storeErr == nil {
+		if storeErr == nil {
 			store.Append(history.EntryFromRestoreError(err, backupPath))
 		} else {
 			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)
@@ -110,7 +113,7 @@ func RestoreCommand(args []string) int {
 		fmt.Printf("  Files skipped: %d\n", result.FilesSkipped)
 		fmt.Printf("  Backup files created: %d\n", len(result.BackupFiles))
 		// Log success to history (best-effort, don't fail if logging fails)
-		if store, storeErr := history.NewStore(); storeErr == nil {
+		if storeErr == nil {
 			store.Append(history.EntryFromRestoreResult(result, backupPath))
 		} else {
 			fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)
@@ -122,7 +125,7 @@ func RestoreCommand(args []string) int {
 	fmt.Printf("  Files restored: %d\n", result.FilesRestored)
 	fmt.Printf("  Backup files created: %d\n", len(result.BackupFiles))
 	// Log success to history (best-effort, don't fail if logging fails)
-	if store, storeErr := history.NewStore(); storeErr == nil {
+	if storeErr == nil {
 		store.Append(history.EntryFromRestoreResult(result, backupPath))
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: failed to log history: %v\n", storeErr)

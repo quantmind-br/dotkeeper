@@ -18,29 +18,7 @@ func (m Model) View() string {
 	}
 
 	if m.showingHelp {
-		var viewHelp []views.HelpEntry
-		switch m.state {
-		case DashboardView:
-			if hp, ok := interface{}(m.dashboard).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		case BackupListView:
-			if hp, ok := interface{}(m.backupList).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		case RestoreView:
-			if hp, ok := interface{}(m.restore).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		case SettingsView:
-			if hp, ok := interface{}(m.settings).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		case LogsView:
-			if hp, ok := interface{}(m.logs).(views.HelpProvider); ok {
-				viewHelp = hp.HelpBindings()
-			}
-		}
+		viewHelp := m.currentViewHelp()
 		return renderHelpOverlay(globalHelp(), viewHelp, m.width, m.height)
 	}
 
@@ -48,7 +26,7 @@ func (m Model) View() string {
 
 	s := styles.DefaultStyles()
 
-	b.WriteString(s.AppTitle.Render("dotkeeper - Dotfiles Backup Manager"))
+	b.WriteString(s.AppTitle.Render("DotKeeper - Dotfiles Backup Manager"))
 	b.WriteString("\n")
 
 	tabBar := components.NewTabBar(s)
@@ -77,4 +55,21 @@ func (m Model) View() string {
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+// currentViewHelp returns help bindings for the currently active view.
+func (m Model) currentViewHelp() []views.HelpEntry {
+	switch m.state {
+	case DashboardView:
+		return m.dashboard.HelpBindings()
+	case BackupListView:
+		return m.backupList.HelpBindings()
+	case RestoreView:
+		return m.restore.HelpBindings()
+	case SettingsView:
+		return m.settings.HelpBindings()
+	case LogsView:
+		return m.logs.HelpBindings()
+	}
+	return nil
 }

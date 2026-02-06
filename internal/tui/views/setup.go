@@ -7,7 +7,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
@@ -68,8 +67,6 @@ type SetupModel struct {
 // NewSetup creates a new setup wizard model
 func NewSetup() SetupModel {
 	pc := components.NewPathCompleter()
-	pc.Input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
-	pc.Input.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
 	fp := filepicker.New()
 	home, _ := os.UserHomeDir()
@@ -98,11 +95,23 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.filePicker, cmd = m.filePicker.Update(msg)
 
 		if didSelect, path := m.filePicker.DidSelectFile(msg); didSelect {
+			info, statErr := os.Stat(path)
 			if m.step == StepAddFiles {
+				if statErr == nil && info.IsDir() {
+					m.validationErr = "Selected path is a directory, not a file"
+					m.browsing = false
+					return m, nil
+				}
 				m.addedFiles = append(m.addedFiles, path)
 			} else if m.step == StepAddFolders {
+				if statErr == nil && !info.IsDir() {
+					m.validationErr = "Selected path is a file, not a directory"
+					m.browsing = false
+					return m, nil
+				}
 				m.addedFolders = append(m.addedFolders, path)
 			}
+			m.validationErr = ""
 			m.browsing = false
 			return m, nil
 		}
@@ -243,57 +252,10 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.pathCompleter.Input.Focus()
 
 	case StepAddFiles:
-		value := strings.TrimSpace(m.pathCompleter.Input.Value())
-		if value == "" {
-			m.validationErr = ""
-			m.step = StepAddFolders
-			m.resetInput()
-			m.pathCompleter.Input.Focus()
-		} else if pathutil.IsGlobPattern(value) {
-			results, err := pathutil.ResolveGlob(value, nil)
-			if err != nil {
-				m.validationErr = err.Error()
-			} else {
-				m.validationErr = fmt.Sprintf("Added %d paths from glob", len(results))
-				m.addedFiles = append(m.addedFiles, results...)
-				m.pathCompleter.Input.SetValue("")
-			}
-		} else {
-			expandedPath, err := ValidateFilePath(pathutil.ExpandHome(value))
-			if err != nil {
-				m.validationErr = err.Error()
-			} else {
-				m.validationErr = ""
-				m.addedFiles = append(m.addedFiles, expandedPath)
-				m.pathCompleter.Input.SetValue("")
-			}
-		}
+		return m.handleAddFilesEnter()
 
 	case StepAddFolders:
-		value := strings.TrimSpace(m.pathCompleter.Input.Value())
-		if value == "" {
-			m.validationErr = ""
-			m.step = StepConfirm
-			m.resetInput()
-		} else if pathutil.IsGlobPattern(value) {
-			results, err := pathutil.ResolveGlob(value, nil)
-			if err != nil {
-				m.validationErr = err.Error()
-			} else {
-				m.validationErr = fmt.Sprintf("Added %d paths from glob", len(results))
-				m.addedFolders = append(m.addedFolders, results...)
-				m.pathCompleter.Input.SetValue("")
-			}
-		} else {
-			expandedPath, err := ValidateFolderPath(pathutil.ExpandHome(value))
-			if err != nil {
-				m.validationErr = err.Error()
-			} else {
-				m.validationErr = ""
-				m.addedFolders = append(m.addedFolders, expandedPath)
-				m.pathCompleter.Input.SetValue("")
-			}
-		}
+		return m.handleAddFoldersEnter()
 
 	case StepConfirm:
 		// Save configuration
@@ -309,8 +271,73 @@ func (m SetupModel) handleEnter() (tea.Model, tea.Cmd) {
 		}
 
 		m.step = StepComplete
+		cfg := m.config
+		return m, func() tea.Msg {
+			return SetupCompleteMsg{Config: cfg}
+		}
 	}
 
+	return m, nil
+}
+
+func (m SetupModel) handleAddFilesEnter() (tea.Model, tea.Cmd) {
+	value := strings.TrimSpace(m.pathCompleter.Input.Value())
+	if value == "" {
+		m.validationErr = ""
+		m.step = StepAddFolders
+		m.resetInput()
+		m.pathCompleter.Input.Focus()
+		return m, nil
+	}
+	if pathutil.IsGlobPattern(value) {
+		results, err := pathutil.ResolveGlob(value, nil)
+		if err != nil {
+			m.validationErr = err.Error()
+		} else {
+			m.validationErr = fmt.Sprintf("Added %d paths from glob", len(results))
+			m.addedFiles = append(m.addedFiles, results...)
+			m.pathCompleter.Input.SetValue("")
+		}
+		return m, nil
+	}
+	expandedPath, err := ValidateFilePath(pathutil.ExpandHome(value))
+	if err != nil {
+		m.validationErr = err.Error()
+	} else {
+		m.validationErr = ""
+		m.addedFiles = append(m.addedFiles, expandedPath)
+		m.pathCompleter.Input.SetValue("")
+	}
+	return m, nil
+}
+
+func (m SetupModel) handleAddFoldersEnter() (tea.Model, tea.Cmd) {
+	value := strings.TrimSpace(m.pathCompleter.Input.Value())
+	if value == "" {
+		m.validationErr = ""
+		m.step = StepConfirm
+		m.resetInput()
+		return m, nil
+	}
+	if pathutil.IsGlobPattern(value) {
+		results, err := pathutil.ResolveGlob(value, nil)
+		if err != nil {
+			m.validationErr = err.Error()
+		} else {
+			m.validationErr = fmt.Sprintf("Added %d paths from glob", len(results))
+			m.addedFolders = append(m.addedFolders, results...)
+			m.pathCompleter.Input.SetValue("")
+		}
+		return m, nil
+	}
+	expandedPath, err := ValidateFolderPath(pathutil.ExpandHome(value))
+	if err != nil {
+		m.validationErr = err.Error()
+	} else {
+		m.validationErr = ""
+		m.addedFolders = append(m.addedFolders, expandedPath)
+		m.pathCompleter.Input.SetValue("")
+	}
 	return m, nil
 }
 
@@ -324,7 +351,7 @@ func (m *SetupModel) resetInput() {
 func (m SetupModel) View() string {
 	var s strings.Builder
 
-	styles := styles.DefaultStyles()
+	st := styles.DefaultStyles()
 
 	var errMsg string
 	var statusText string
@@ -332,7 +359,7 @@ func (m SetupModel) View() string {
 
 	switch m.step {
 	case StepWelcome:
-		s.WriteString(styles.Title.Render("Welcome to dotkeeper!") + "\n\n")
+		s.WriteString(st.Title.Render("Welcome to dotkeeper!") + "\n\n")
 		s.WriteString("This wizard will help you set up dotkeeper for the first time.\n\n")
 		s.WriteString("You'll configure:\n")
 		s.WriteString("  • Backup directory\n")
@@ -341,20 +368,20 @@ func (m SetupModel) View() string {
 		helpText = "Enter: continue"
 
 	case StepBackupDir:
-		s.WriteString(styles.Title.Render("Step 1: Backup Directory") + "\n\n")
+		s.WriteString(st.Title.Render("Step 1: Backup Directory") + "\n\n")
 		s.WriteString("Where should backups be stored?\n")
 		s.WriteString("(Default: ~/.dotfiles)\n\n")
 		s.WriteString(m.pathCompleter.View() + "\n")
 		helpText = "Enter: continue | Esc: back"
 
 	case StepGitRemote:
-		s.WriteString(styles.Title.Render("Step 2: Git Remote") + "\n\n")
+		s.WriteString(st.Title.Render("Step 2: Git Remote") + "\n\n")
 		s.WriteString("Enter your git repository URL (optional):\n\n")
 		s.WriteString(m.pathCompleter.View() + "\n")
 		helpText = "Enter: continue | Esc: back"
 
 	case StepPresetFiles:
-		s.WriteString(styles.Title.Render("Step 3: Select File Presets") + "\n\n")
+		s.WriteString(st.Title.Render("Step 3: Select File Presets") + "\n\n")
 		if !m.presetsLoaded {
 			s.WriteString("Scanning for dotfiles...\n")
 		} else if len(m.presetFiles) == 0 {
@@ -373,7 +400,7 @@ func (m SetupModel) View() string {
 
 				label := fmt.Sprintf("%s %s %s (%s)", cursor, checked, p.Path, formatBytes(p.Size))
 				if i == m.presetCursor {
-					s.WriteString(styles.Selected.Render(label) + "\n")
+					s.WriteString(st.Selected.Render(label) + "\n")
 				} else {
 					s.WriteString(label + "\n")
 				}
@@ -382,7 +409,7 @@ func (m SetupModel) View() string {
 		helpText = "Space: toggle | Enter: continue | Esc: back"
 
 	case StepPresetFolders:
-		s.WriteString(styles.Title.Render("Step 4: Select Folder Presets") + "\n\n")
+		s.WriteString(st.Title.Render("Step 4: Select Folder Presets") + "\n\n")
 		if !m.presetsLoaded {
 			s.WriteString("Scanning for dotfiles...\n")
 		} else if len(m.presetFolders) == 0 {
@@ -402,7 +429,7 @@ func (m SetupModel) View() string {
 				fileCount := fmt.Sprintf("%d files", p.FileCount)
 				label := fmt.Sprintf("%s %s %s (%s, %s)", cursor, checked, p.Path, fileCount, formatBytes(p.Size))
 				if i == m.presetCursor {
-					s.WriteString(styles.Selected.Render(label) + "\n")
+					s.WriteString(st.Selected.Render(label) + "\n")
 				} else {
 					s.WriteString(label + "\n")
 				}
@@ -411,7 +438,7 @@ func (m SetupModel) View() string {
 		helpText = "Space: toggle | Enter: continue | Esc: back"
 
 	case StepAddFiles:
-		s.WriteString(styles.Title.Render("Step 5: Add Custom Files") + "\n\n")
+		s.WriteString(st.Title.Render("Step 5: Add Custom Files") + "\n\n")
 
 		if m.browsing {
 			s.WriteString("Browse for files:\n\n")
@@ -426,7 +453,7 @@ func (m SetupModel) View() string {
 			}
 
 			if len(m.addedFiles) > 0 {
-				s.WriteString(styles.Title.Render("Added files:") + "\n")
+				s.WriteString(st.Title.Render("Added files:") + "\n")
 				for _, f := range m.addedFiles {
 					s.WriteString("  • " + f + "\n")
 				}
@@ -438,7 +465,7 @@ func (m SetupModel) View() string {
 		}
 
 	case StepAddFolders:
-		s.WriteString(styles.Title.Render("Step 6: Add Custom Folders") + "\n\n")
+		s.WriteString(st.Title.Render("Step 6: Add Custom Folders") + "\n\n")
 
 		if m.browsing {
 			s.WriteString("Browse for folders:\n\n")
@@ -453,7 +480,7 @@ func (m SetupModel) View() string {
 			}
 
 			if len(m.addedFolders) > 0 {
-				s.WriteString(styles.Title.Render("Added folders:") + "\n")
+				s.WriteString(st.Title.Render("Added folders:") + "\n")
 				for _, f := range m.addedFolders {
 					s.WriteString("  • " + f + "\n")
 				}
@@ -465,11 +492,11 @@ func (m SetupModel) View() string {
 		}
 
 	case StepConfirm:
-		s.WriteString(styles.Title.Render("Step 7: Confirm Configuration") + "\n\n")
-		s.WriteString(styles.Label.Render("Backup Directory: ") + m.config.BackupDir + "\n")
-		s.WriteString(styles.Label.Render("Git Remote: ") + m.config.GitRemote + "\n")
-		s.WriteString(styles.Label.Render("Files: ") + fmt.Sprintf("%d", len(m.addedFiles)) + "\n")
-		s.WriteString(styles.Label.Render("Folders: ") + fmt.Sprintf("%d", len(m.addedFolders)) + "\n\n")
+		s.WriteString(st.Title.Render("Step 7: Confirm Configuration") + "\n\n")
+		s.WriteString(st.Label.Render("Backup Directory: ") + m.config.BackupDir + "\n")
+		s.WriteString(st.Label.Render("Git Remote: ") + m.config.GitRemote + "\n")
+		s.WriteString(st.Label.Render("Files: ") + fmt.Sprintf("%d", len(m.addedFiles)) + "\n")
+		s.WriteString(st.Label.Render("Folders: ") + fmt.Sprintf("%d", len(m.addedFolders)) + "\n\n")
 
 		if len(m.addedFiles) > 0 {
 			s.WriteString("Files:\n")
@@ -491,11 +518,11 @@ func (m SetupModel) View() string {
 
 	case StepComplete:
 		if m.err != nil {
-			s.WriteString(styles.Title.Render("Setup Failed") + "\n\n")
+			s.WriteString(st.Title.Render("Setup Failed") + "\n\n")
 			errMsg = m.err.Error()
 			helpText = "Ctrl+C: exit"
 		} else {
-			s.WriteString(styles.Success.Render("✓ Setup Complete!") + "\n\n")
+			s.WriteString(st.Success.Render("✓ Setup Complete!") + "\n\n")
 			s.WriteString("Your dotkeeper configuration has been saved.\n")
 			statusText = "Configuration saved"
 			helpText = "Ctrl+C: exit"

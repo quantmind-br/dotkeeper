@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -106,10 +107,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("backup_dir is required")
 	}
 
-	if c.GitRemote == "" {
-		return fmt.Errorf("git_remote is required")
-	}
-
 	if len(c.Files) == 0 && len(c.Folders) == 0 {
 		return fmt.Errorf("at least one file or folder must be specified")
 	}
@@ -155,20 +152,24 @@ func (c *Config) ActiveFolders() []string {
 
 // LoadOrDefault loads config from the default location or returns a default config
 func LoadOrDefault(path string) (*Config, error) {
+	home, _ := os.UserHomeDir()
+
 	cfg, err := LoadFromPath(path)
 	if err != nil {
-		// Return default config if file doesn't exist
-		return &Config{
-			BackupDir:       filepath.Join(os.Getenv("HOME"), ".dotfiles"),
-			GitRemote:       "https://github.com/user/dotfiles.git",
-			Files:           []string{},
-			Folders:         []string{".config"},
-			Schedule:        "0 2 * * *",
-			Notifications:   true,
-			Exclude:         []string{},
-			DisabledFiles:   []string{},
-			DisabledFolders: []string{},
-		}, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return &Config{
+				BackupDir:       filepath.Join(home, ".dotfiles"),
+				GitRemote:       "https://github.com/user/dotfiles.git",
+				Files:           []string{},
+				Folders:         []string{".config"},
+				Schedule:        "0 2 * * *",
+				Notifications:   true,
+				Exclude:         []string{},
+				DisabledFiles:   []string{},
+				DisabledFolders: []string{},
+			}, nil
+		}
+		return nil, fmt.Errorf("loading config: %w", err)
 	}
 	return cfg, nil
 }
