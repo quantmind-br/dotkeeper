@@ -10,12 +10,15 @@ import (
 
 // Config represents the dotkeeper configuration
 type Config struct {
-	BackupDir     string   `yaml:"backup_dir"`
-	GitRemote     string   `yaml:"git_remote"`
-	Files         []string `yaml:"files"`
-	Folders       []string `yaml:"folders"`
-	Schedule      string   `yaml:"schedule"` // cron format
-	Notifications bool     `yaml:"notifications"`
+	BackupDir       string   `yaml:"backup_dir"`
+	GitRemote       string   `yaml:"git_remote"`
+	Files           []string `yaml:"files"`
+	Folders         []string `yaml:"folders"`
+	Schedule        string   `yaml:"schedule"` // cron format
+	Notifications   bool     `yaml:"notifications"`
+	Exclude         []string `yaml:"exclude,omitempty"`
+	DisabledFiles   []string `yaml:"disabled_files,omitempty"`
+	DisabledFolders []string `yaml:"disabled_folders,omitempty"`
 }
 
 // GetConfigDir returns the XDG config directory for dotkeeper
@@ -114,18 +117,57 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// ActiveFiles returns Files minus any entries in DisabledFiles.
+func (c *Config) ActiveFiles() []string {
+	if len(c.DisabledFiles) == 0 {
+		return c.Files
+	}
+	disabled := make(map[string]bool, len(c.DisabledFiles))
+	for _, f := range c.DisabledFiles {
+		disabled[f] = true
+	}
+	active := make([]string, 0, len(c.Files))
+	for _, f := range c.Files {
+		if !disabled[f] {
+			active = append(active, f)
+		}
+	}
+	return active
+}
+
+// ActiveFolders returns Folders minus any entries in DisabledFolders.
+func (c *Config) ActiveFolders() []string {
+	if len(c.DisabledFolders) == 0 {
+		return c.Folders
+	}
+	disabled := make(map[string]bool, len(c.DisabledFolders))
+	for _, f := range c.DisabledFolders {
+		disabled[f] = true
+	}
+	active := make([]string, 0, len(c.Folders))
+	for _, f := range c.Folders {
+		if !disabled[f] {
+			active = append(active, f)
+		}
+	}
+	return active
+}
+
 // LoadOrDefault loads config from the default location or returns a default config
 func LoadOrDefault(path string) (*Config, error) {
 	cfg, err := LoadFromPath(path)
 	if err != nil {
 		// Return default config if file doesn't exist
 		return &Config{
-			BackupDir:     filepath.Join(os.Getenv("HOME"), ".dotfiles"),
-			GitRemote:     "https://github.com/user/dotfiles.git",
-			Files:         []string{},
-			Folders:       []string{".config"},
-			Schedule:      "0 2 * * *",
-			Notifications: true,
+			BackupDir:       filepath.Join(os.Getenv("HOME"), ".dotfiles"),
+			GitRemote:       "https://github.com/user/dotfiles.git",
+			Files:           []string{},
+			Folders:         []string{".config"},
+			Schedule:        "0 2 * * *",
+			Notifications:   true,
+			Exclude:         []string{},
+			DisabledFiles:   []string{},
+			DisabledFolders: []string{},
 		}, nil
 	}
 	return cfg, nil

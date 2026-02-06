@@ -255,3 +255,96 @@ func TestConfigRoundtrip(t *testing.T) {
 		t.Errorf("Notifications mismatch")
 	}
 }
+
+// TestConfigActiveFiles tests the ActiveFiles method
+func TestConfigActiveFiles(t *testing.T) {
+	cfg := &Config{
+		Files:         []string{"a", "b", "c"},
+		DisabledFiles: []string{"b"},
+	}
+	active := cfg.ActiveFiles()
+	if len(active) != 2 || active[0] != "a" || active[1] != "c" {
+		t.Errorf("ActiveFiles() = %v, want [a, c]", active)
+	}
+}
+
+// TestConfigActiveFolders tests the ActiveFolders method
+func TestConfigActiveFolders(t *testing.T) {
+	cfg := &Config{
+		Folders:         []string{"x", "y", "z"},
+		DisabledFolders: []string{"x", "z"},
+	}
+	active := cfg.ActiveFolders()
+	if len(active) != 1 || active[0] != "y" {
+		t.Errorf("ActiveFolders() = %v, want [y]", active)
+	}
+}
+
+// TestConfigActiveFilesNoDisabled tests ActiveFiles with no disabled entries
+func TestConfigActiveFilesNoDisabled(t *testing.T) {
+	cfg := &Config{Files: []string{"a", "b"}}
+	active := cfg.ActiveFiles()
+	if len(active) != 2 {
+		t.Errorf("ActiveFiles() with no disabled = %v, want all files", active)
+	}
+}
+
+// TestConfigBackwardCompatibility tests loading old format YAML without new fields
+func TestConfigBackwardCompatibility(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	oldYAML := `backup_dir: /tmp/backup
+git_remote: https://github.com/user/repo.git
+files:
+  - .bashrc
+folders:
+  - .config
+schedule: "0 2 * * *"
+notifications: true
+`
+	if err := os.WriteFile(configPath, []byte(oldYAML), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+	cfg, err := LoadFromPath(configPath)
+	if err != nil {
+		t.Fatalf("Old format should load cleanly: %v", err)
+	}
+	if len(cfg.Exclude) != 0 {
+		t.Errorf("Exclude should be nil/empty for old config")
+	}
+	if len(cfg.DisabledFiles) != 0 {
+		t.Errorf("DisabledFiles should be nil/empty for old config")
+	}
+	active := cfg.ActiveFiles()
+	if len(active) != 1 || active[0] != ".bashrc" {
+		t.Errorf("ActiveFiles should return all files when no disabled: %v", active)
+	}
+}
+
+// TestConfigNewFieldsRoundtrip tests saving and loading config with new fields
+func TestConfigNewFieldsRoundtrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	cfg := &Config{
+		BackupDir:       "/tmp/backup",
+		GitRemote:       "https://github.com/user/repo.git",
+		Files:           []string{".bashrc", ".zshrc"},
+		Folders:         []string{".config"},
+		Exclude:         []string{"*.log", "node_modules/"},
+		DisabledFiles:   []string{".zshrc"},
+		DisabledFolders: []string{},
+	}
+	if err := cfg.SaveToPath(configPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	loaded, err := LoadFromPath(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(loaded.Exclude) != 2 {
+		t.Errorf("Exclude roundtrip failed: %v", loaded.Exclude)
+	}
+	if len(loaded.DisabledFiles) != 1 || loaded.DisabledFiles[0] != ".zshrc" {
+		t.Errorf("DisabledFiles roundtrip failed: %v", loaded.DisabledFiles)
+	}
+}
