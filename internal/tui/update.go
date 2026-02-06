@@ -92,6 +92,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	if m.setupMode {
+		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			m.width = wsMsg.Width
+			m.height = wsMsg.Height
+		}
 		switch msg := msg.(type) {
 		case views.SetupCompleteMsg:
 			m.setupMode = false
@@ -105,6 +109,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.settings = views.NewSettings(cfg)
 			m.logs = views.NewLogs(cfg, store)
 			m.state = DashboardView
+			if m.width > 0 && m.height > 0 {
+				m.propagateWindowSize(tea.WindowSizeMsg{Width: m.width, Height: m.height})
+			}
 			return m, nil
 		default:
 			var model tea.Model

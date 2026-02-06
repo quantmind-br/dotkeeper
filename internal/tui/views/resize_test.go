@@ -497,3 +497,55 @@ func TestLogsResizeUpdatesListDimensions(t *testing.T) {
 		t.Errorf("expected height 100, got %d", lm.height)
 	}
 }
+
+func TestSetupBrowseResizeUpdatesPathCompleterWidth(t *testing.T) {
+	m := NewSetup()
+
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sm := model.(SetupModel)
+	initialWidth := sm.pathCompleter.Input.Width
+
+	sm.browsing = true
+	model, _ = sm.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	sm = model.(SetupModel)
+
+	if sm.pathCompleter.Input.Width == initialWidth {
+		t.Errorf("pathCompleter width should update during browsing, stayed at %d", initialWidth)
+	}
+	expectedWidth := 120 - 6
+	if sm.pathCompleter.Input.Width != expectedWidth {
+		t.Errorf("expected pathCompleter width %d, got %d", expectedWidth, sm.pathCompleter.Input.Width)
+	}
+}
+
+func TestSetupTinyResizeClampsFilepickerHeight(t *testing.T) {
+	m := NewSetup()
+
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 3})
+	sm := model.(SetupModel)
+
+	if sm.filePicker.Height < 0 {
+		t.Errorf("filePicker.Height should not be negative, got %d", sm.filePicker.Height)
+	}
+
+	model, _ = sm.Update(tea.WindowSizeMsg{Width: 40, Height: 1})
+	sm = model.(SetupModel)
+
+	if sm.filePicker.Height < 0 {
+		t.Errorf("filePicker.Height should not be negative at height=1, got %d", sm.filePicker.Height)
+	}
+}
+
+func TestSetupBrowseTinyResizeClampsFilepickerHeight(t *testing.T) {
+	m := NewSetup()
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sm := model.(SetupModel)
+	sm.browsing = true
+
+	model, _ = sm.Update(tea.WindowSizeMsg{Width: 40, Height: 2})
+	sm = model.(SetupModel)
+
+	if sm.filePicker.Height < 0 {
+		t.Errorf("filePicker.Height should not be negative during browsing at height=2, got %d", sm.filePicker.Height)
+	}
+}

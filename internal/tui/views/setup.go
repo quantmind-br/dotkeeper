@@ -94,9 +94,7 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.browsing {
 		// Handle resize even during browsing
 		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
-			m.width = wsMsg.Width
-			m.height = wsMsg.Height
-			m.filePicker.Height = wsMsg.Height - 8
+			m.applyResize(wsMsg.Width, wsMsg.Height)
 			return m, nil
 		}
 
@@ -134,14 +132,7 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.filePicker.Height = msg.Height - 8
-		pcWidth := msg.Width - 6
-		if pcWidth < 20 {
-			pcWidth = 20
-		}
-		m.pathCompleter.Input.Width = pcWidth
+		m.applyResize(msg.Width, msg.Height)
 
 	case presetsDetectedMsg:
 		m.presetFiles = msg.files
@@ -360,6 +351,23 @@ func (m SetupModel) handleAddFoldersEnter() (tea.Model, tea.Cmd) {
 func (m *SetupModel) resetInput() {
 	m.pathCompleter.Input.SetValue("")
 	m.pathCompleter.Input.Blur()
+}
+
+// applyResize updates all dimension-dependent fields from a terminal resize.
+// Called from both browsing and non-browsing WindowSizeMsg handlers.
+func (m *SetupModel) applyResize(width, height int) {
+	m.width = width
+	m.height = height
+	fpHeight := height - 8
+	if fpHeight < 0 {
+		fpHeight = 0
+	}
+	m.filePicker.Height = fpHeight
+	pcWidth := width - 6
+	if pcWidth < 20 {
+		pcWidth = 20
+	}
+	m.pathCompleter.Input.Width = pcWidth
 }
 
 // View renders the setup wizard
