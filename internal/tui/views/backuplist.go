@@ -22,10 +22,8 @@ type BackupSuccessMsg struct {
 	Result *backup.BackupResult
 }
 
-// BackupErrorMsg represents a backup error. Consolidated to ErrorMsg pattern.
-type BackupErrorMsg struct {
-	Error error
-}
+// BackupErrorMsg is consolidated to ErrorMsg with Source="backup".
+type BackupErrorMsg = ErrorMsg
 
 type backupDeletedMsg struct{ name string }
 
@@ -80,14 +78,14 @@ func (m *BackupListModel) runBackup(password string) tea.Cmd {
 	m.loading = true
 	return func() tea.Msg {
 		if m.ctx.Config == nil {
-			return BackupErrorMsg{Error: fmt.Errorf("missing config")}
+			return BackupErrorMsg{Source: "backup", Err: fmt.Errorf("missing config")}
 		}
 		cfg := m.ctx.Config
 		cfg.BackupDir = pathutil.ExpandHome(cfg.BackupDir)
 
 		result, err := backup.Backup(cfg, password)
 		if err != nil {
-			return BackupErrorMsg{Error: err}
+			return BackupErrorMsg{Source: "backup", Err: err}
 		}
 		return BackupSuccessMsg{Result: result}
 	}
@@ -153,15 +151,24 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.Refresh()
 
 	case BackupErrorMsg:
-		m.creatingBackup = false
-		m.loading = false
-		m.backupStatus = ""
-		m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Error)
-		m.passwordInput.SetValue("")
-		if m.ctx.Store != nil {
-			_ = m.ctx.Store.Append(history.EntryFromBackupError(msg.Error))
+		if msg.Source == "backup" {
+			m.creatingBackup = false
+			m.loading = false
+			m.backupStatus = ""
+			m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Err)
+			m.passwordInput.SetValue("")
+			if m.ctx.Store != nil {
+				_ = m.ctx.Store.Append(history.EntryFromBackupError(msg.Err))
+			}
+			return m, nil
+		} else if msg.Source == "backup-delete" {
+			m.confirmingDelete = false
+			m.loading = false
+			m.backupStatus = ""
+			m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.Err)
+			m.deleteTarget = ""
+			return m, nil
 		}
-		return m, nil
 
 	case backupDeletedMsg:
 		m.confirmingDelete = false
@@ -170,14 +177,6 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.backupError = ""
 		m.deleteTarget = ""
 		return m, m.Refresh()
-
-	case backupDeleteErrorMsg:
-		m.confirmingDelete = false
-		m.loading = false
-		m.backupStatus = ""
-		m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.Err)
-		m.deleteTarget = ""
-		return m, nil
 
 	case tea.KeyMsg:
 		if m.confirmingDelete {

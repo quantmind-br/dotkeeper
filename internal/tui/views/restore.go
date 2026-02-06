@@ -50,9 +50,8 @@ type RestoreModel struct {
 
 type passwordValidMsg struct{}
 
-type passwordInvalidMsg struct {
-	err error
-}
+// passwordInvalidMsg is consolidated to ErrorMsg with Source="restore-password".
+type passwordInvalidMsg = ErrorMsg
 
 type filesLoadedMsg struct {
 	files []restore.FileEntry
@@ -63,17 +62,15 @@ type diffLoadedMsg struct {
 	file string
 }
 
-type diffErrorMsg struct {
-	err error
-}
+// diffErrorMsg is consolidated to ErrorMsg with Source="restore-diff".
+type diffErrorMsg = ErrorMsg
 
 type restoreCompleteMsg struct {
 	result *restore.RestoreResult
 }
 
-type restoreErrorMsg struct {
-	err error
-}
+// restoreErrorMsg is consolidated to ErrorMsg with Source="restore".
+type restoreErrorMsg = ErrorMsg
 
 // fileItem represents a file in the restore list with selection state
 type fileItem struct {
@@ -144,7 +141,7 @@ func (m RestoreModel) validatePassword(backupPath, password string) tea.Cmd {
 	return func() tea.Msg {
 		err := restore.ValidateBackup(backupPath, password)
 		if err != nil {
-			return passwordInvalidMsg{err: err}
+			return passwordInvalidMsg{Source: "restore-password", Err: err}
 		}
 		return passwordValidMsg{}
 	}
@@ -154,7 +151,7 @@ func (m RestoreModel) loadFiles(backupPath, password string) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := restore.ListBackupContents(backupPath, password)
 		if err != nil {
-			return passwordInvalidMsg{err: fmt.Errorf("failed to load files: %w", err)}
+			return passwordInvalidMsg{Source: "restore-password", Err: fmt.Errorf("failed to load files: %w", err)}
 		}
 		return filesLoadedMsg{files: entries}
 	}
@@ -170,7 +167,7 @@ func (m RestoreModel) loadDiff(filePath string) tea.Cmd {
 					file: filePath,
 				}
 			}
-			return diffErrorMsg{err: err}
+			return diffErrorMsg{Source: "restore-diff", Err: err}
 		}
 		if diff == "" {
 			return diffLoadedMsg{
@@ -190,7 +187,7 @@ func (m RestoreModel) runRestore() tea.Cmd {
 
 		result, err := restore.Restore(m.selectedBackup, m.password, opts)
 		if err != nil {
-			return restoreErrorMsg{err: err}
+			return restoreErrorMsg{Source: "restore", Err: err}
 		}
 		return restoreCompleteMsg{result: result}
 	}
@@ -408,19 +405,34 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadFiles(m.selectedBackup, m.password)
 
 	case passwordInvalidMsg:
-		m.passwordAttempts++
-		if m.passwordAttempts >= 3 {
-			m.restoreError = "Too many failed attempts"
-			m.phase = phaseBackupList
-			m.passwordAttempts = 0
-			m.passwordInput.SetValue("")
-			m.passwordInput.Blur()
-		} else {
-			m.restoreError = fmt.Sprintf("Invalid password (attempt %d/3)", m.passwordAttempts)
-			m.passwordInput.SetValue("")
+		if msg.Source == "restore-password" {
+			m.passwordAttempts++
+			if m.passwordAttempts >= 3 {
+				m.restoreError = "Too many failed attempts"
+				m.phase = phaseBackupList
+				m.passwordAttempts = 0
+				m.passwordInput.SetValue("")
+				m.passwordInput.Blur()
+			} else {
+				m.restoreError = fmt.Sprintf("Invalid password (attempt %d/3): %v", m.passwordAttempts, msg.Err)
+				m.passwordInput.SetValue("")
+			}
+			m.restoreStatus = ""
+			return m, nil
+		} else if msg.Source == "restore-diff" {
+			m.restoreError = fmt.Sprintf("Failed to load diff: %v", msg.Err)
+			m.restoreStatus = ""
+			return m, nil
+		} else if msg.Source == "restore" {
+			m.restoreError = fmt.Sprintf("Restore failed: %v", msg.Err)
+			m.restoreResult = nil
+			m.phase = phaseResults
+			m.restoreStatus = ""
+			if m.ctx.Store != nil {
+				_ = m.ctx.Store.Append(history.EntryFromRestoreError(msg.Err, m.selectedBackup))
+			}
+			return m, nil
 		}
-		m.restoreStatus = ""
-		return m, nil
 
 	case filesLoadedMsg:
 		items := make([]list.Item, len(msg.files))
@@ -448,11 +460,6 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreError = ""
 		return m, nil
 
-	case diffErrorMsg:
-		m.restoreError = fmt.Sprintf("Failed to load diff: %v", msg.err)
-		m.restoreStatus = ""
-		return m, nil
-
 	case restoreCompleteMsg:
 		m.restoreResult = msg.result
 		m.phase = phaseResults
@@ -460,16 +467,6 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.restoreError = ""
 		if m.ctx.Store != nil {
 			_ = m.ctx.Store.Append(history.EntryFromRestoreResult(msg.result, m.selectedBackup))
-		}
-		return m, nil
-
-	case restoreErrorMsg:
-		m.restoreError = fmt.Sprintf("Restore failed: %v", msg.err)
-		m.restoreResult = nil
-		m.phase = phaseResults
-		m.restoreStatus = ""
-		if m.ctx.Store != nil {
-			_ = m.ctx.Store.Append(history.EntryFromRestoreError(msg.err, m.selectedBackup))
 		}
 		return m, nil
 
