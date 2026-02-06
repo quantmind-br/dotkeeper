@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -69,28 +68,13 @@ func globalHelp() []views.HelpEntry {
 func renderHelpOverlay(helpModel help.Model, global []views.HelpEntry, viewHelp []views.HelpEntry, width, height int) string {
 	s := styles.DefaultStyles()
 
-	// Create KeyMap for bubbles/help
 	keyMap := NewHelpKeyMap(global, viewHelp)
+	helpContent := helpModel.View(keyMap)
 
 	var content strings.Builder
-
 	content.WriteString(s.HelpTitle.Render("Keyboard Shortcuts"))
 	content.WriteString("\n\n")
-
-	content.WriteString(s.HelpSection.Render("Global"))
-	content.WriteString("\n")
-	for _, entry := range global {
-		content.WriteString(fmt.Sprintf("  %s  %s\n", s.HelpKey.Render(entry.Key), entry.Description))
-	}
-
-	if len(viewHelp) > 0 {
-		content.WriteString("\n")
-		content.WriteString(s.HelpSection.Render("Current View"))
-		content.WriteString("\n")
-		for _, entry := range viewHelp {
-			content.WriteString(fmt.Sprintf("  %s  %s\n", s.HelpKey.Render(entry.Key), entry.Description))
-		}
-	}
+	content.WriteString(helpContent)
 
 	if width < 40 || height < 15 {
 		return content.String()
@@ -110,9 +94,6 @@ func renderHelpOverlay(helpModel help.Model, global []views.HelpEntry, viewHelp 
 		Height(overlayH)
 
 	overlay := overlayStyle.Render(content.String())
-
-	// Use the help model and keyMap (bubbles/help integration point)
-	_ = helpModel.View(keyMap)
 
 	return views.PlaceOverlay(width, height, overlay)
 }

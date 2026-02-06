@@ -70,6 +70,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	m.help, cmd = m.help.Update(msg)
+	cmds = append(cmds, cmd)
+
 	if m.setupMode {
 		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 			m.width = wsMsg.Width
