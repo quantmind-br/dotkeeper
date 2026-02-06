@@ -9,6 +9,14 @@ import (
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
+func updateView[T tea.Model](view T, msg tea.Msg) (T, tea.Cmd) {
+	model, cmd := view.Update(msg)
+	if v, ok := model.(T); ok {
+		return v, cmd
+	}
+	return view, cmd
+}
+
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 	viewWidth := msg.Width
 	if viewWidth < 0 {
@@ -23,39 +31,22 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 		Height: viewHeight,
 	}
 
-	var tm tea.Model
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	// Type assertion required after Update() - all views implement views.View interface
-	tm, cmd = m.dashboard.Update(viewMsg)
-	if d, ok := tm.(views.DashboardModel); ok {
-		m.dashboard = d
-	}
+	m.dashboard, cmd = updateView(m.dashboard, viewMsg)
 	cmds = append(cmds, cmd)
 
-	tm, cmd = m.backupList.Update(viewMsg)
-	if b, ok := tm.(views.BackupListModel); ok {
-		m.backupList = b
-	}
+	m.backupList, cmd = updateView(m.backupList, viewMsg)
 	cmds = append(cmds, cmd)
 
-	tm, cmd = m.restore.Update(viewMsg)
-	if r, ok := tm.(views.RestoreModel); ok {
-		m.restore = r
-	}
+	m.restore, cmd = updateView(m.restore, viewMsg)
 	cmds = append(cmds, cmd)
 
-	tm, cmd = m.settings.Update(viewMsg)
-	if s, ok := tm.(views.SettingsModel); ok {
-		m.settings = s
-	}
+	m.settings, cmd = updateView(m.settings, viewMsg)
 	cmds = append(cmds, cmd)
 
-	tm, cmd = m.logs.Update(viewMsg)
-	if l, ok := tm.(views.LogsModel); ok {
-		m.logs = l
-	}
+	m.logs, cmd = updateView(m.logs, viewMsg)
 	cmds = append(cmds, cmd)
 
 	return tea.Batch(cmds...)
@@ -108,11 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		default:
-			var model tea.Model
-			model, cmd = m.setup.Update(msg)
-			if su, ok := model.(views.SetupModel); ok {
-				m.setup = su
-			}
+			m.setup, cmd = updateView(m.setup, msg)
 			return m, cmd
 		}
 	}
@@ -248,39 +235,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch m.state {
 	case DashboardView:
-		var model tea.Model
-		model, cmd = m.dashboard.Update(msg)
-		if d, ok := model.(views.DashboardModel); ok {
-			m.dashboard = d
-		}
+		m.dashboard, cmd = updateView(m.dashboard, msg)
 		cmds = append(cmds, cmd)
 	case BackupListView:
-		var model tea.Model
-		model, cmd = m.backupList.Update(msg)
-		if b, ok := model.(views.BackupListModel); ok {
-			m.backupList = b
-		}
+		m.backupList, cmd = updateView(m.backupList, msg)
 		cmds = append(cmds, cmd)
 	case RestoreView:
-		var model tea.Model
-		model, cmd = m.restore.Update(msg)
-		if r, ok := model.(views.RestoreModel); ok {
-			m.restore = r
-		}
+		m.restore, cmd = updateView(m.restore, msg)
 		cmds = append(cmds, cmd)
 	case SettingsView:
-		var model tea.Model
-		model, cmd = m.settings.Update(msg)
-		if s, ok := model.(views.SettingsModel); ok {
-			m.settings = s
-		}
+		m.settings, cmd = updateView(m.settings, msg)
 		cmds = append(cmds, cmd)
 	case LogsView:
-		var model tea.Model
-		model, cmd = m.logs.Update(msg)
-		if l, ok := model.(views.LogsModel); ok {
-			m.logs = l
-		}
+		m.logs, cmd = updateView(m.logs, msg)
 		cmds = append(cmds, cmd)
 	}
 
