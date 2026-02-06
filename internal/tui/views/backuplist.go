@@ -27,9 +27,6 @@ type BackupErrorMsg = ErrorMsg
 
 type backupDeletedMsg struct{ name string }
 
-// backupDeleteErrorMsg is consolidated to ErrorMsg with Source="backup-delete".
-type backupDeleteErrorMsg = ErrorMsg
-
 type BackupListModel struct {
 	ctx              *ProgramContext
 	list             list.Model
@@ -101,14 +98,14 @@ func (m *BackupListModel) deleteBackup(name string) tea.Cmd {
 	return tea.Batch(
 		func() tea.Msg {
 			if m.ctx.Config == nil {
-				return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("missing config")}
+				return ErrorMsg{Source: "backup-delete", Err: fmt.Errorf("missing config")}
 			}
 			dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
 			encPath := filepath.Join(dir, name+".tar.gz.enc")
 			metaPath := encPath + ".meta.json"
 
 			if err := os.Remove(encPath); err != nil {
-				return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
+				return ErrorMsg{Source: "backup-delete", Err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
 			}
 			os.Remove(metaPath)
 			return backupDeletedMsg{name: name}

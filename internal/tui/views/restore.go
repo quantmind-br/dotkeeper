@@ -32,6 +32,7 @@ const (
 )
 
 const restoreViewChromeHeight = 5
+const maxPasswordAttempts = 3
 
 // RestoreModel represents the restore view
 type RestoreModel struct {
@@ -68,15 +69,9 @@ type diffLoadedMsg struct {
 	file string
 }
 
-// diffErrorMsg is consolidated to ErrorMsg with Source="restore-diff".
-type diffErrorMsg = ErrorMsg
-
 type restoreCompleteMsg struct {
 	result *restore.RestoreResult
 }
-
-// restoreErrorMsg is consolidated to ErrorMsg with Source="restore".
-type restoreErrorMsg = ErrorMsg
 
 // fileItem represents a file in the restore list with selection state
 type fileItem struct {
@@ -177,7 +172,7 @@ func (m RestoreModel) loadDiff(filePath string) tea.Cmd {
 					file: filePath,
 				}
 			}
-			return diffErrorMsg{Source: "restore-diff", Err: err}
+			return ErrorMsg{Source: "restore-diff", Err: err}
 		}
 		if diff == "" {
 			return diffLoadedMsg{
@@ -197,7 +192,7 @@ func (m RestoreModel) runRestore() tea.Cmd {
 
 		result, err := restore.Restore(m.selectedBackup, m.password, opts)
 		if err != nil {
-			return restoreErrorMsg{Source: "restore", Err: err}
+			return ErrorMsg{Source: "restore", Err: err}
 		}
 		return restoreCompleteMsg{result: result}
 	}
@@ -435,14 +430,14 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Source == "restore-password" {
 			m.loading = false
 			m.passwordAttempts++
-			if m.passwordAttempts >= 3 {
+			if m.passwordAttempts >= maxPasswordAttempts {
 				m.restoreError = "Too many failed attempts"
 				m.phase = phaseBackupList
 				m.passwordAttempts = 0
 				m.passwordInput.SetValue("")
 				m.passwordInput.Blur()
 			} else {
-				m.restoreError = fmt.Sprintf("Invalid password (attempt %d/3): %v", m.passwordAttempts, msg.Err)
+				m.restoreError = fmt.Sprintf("Invalid password (attempt %d/%d): %v", m.passwordAttempts, maxPasswordAttempts, msg.Err)
 				m.passwordInput.SetValue("")
 			}
 			m.restoreStatus = ""
