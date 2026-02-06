@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -109,6 +110,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, m.propagateWindowSize(msg)
+
+	case components.ToastDismissMsg:
+		m.toast.Dismiss()
+		return m, nil
 
 	case views.RefreshBackupListMsg:
 		cmd = m.backupList.Refresh()

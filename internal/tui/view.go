@@ -62,6 +62,12 @@ func (m Model) View() string {
 
 	b.WriteString("\n\n")
 
+	// Render toast notification if visible
+	if toastView := m.toast.View(); toastView != "" {
+		b.WriteString(toastView)
+		b.WriteString("\n")
+	}
+
 	// Use bubbles/help for the inline help bar
 	viewHelp := m.currentViewHelpText()
 	if viewHelp != "" {

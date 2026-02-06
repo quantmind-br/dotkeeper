@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -55,6 +56,9 @@ type Model struct {
 	restore    views.RestoreModel
 	settings   views.SettingsModel
 	logs       views.LogsModel
+
+	// Toast notification
+	toast components.Toast
 }
 
 func NewModel() Model {
@@ -94,6 +98,7 @@ func NewModel() Model {
 		restore:    views.NewRestore(ctx),
 		settings:   views.NewSettings(ctx),
 		logs:       views.NewLogs(ctx),
+		toast:      components.NewToast(),
 	}
 }
 
@@ -110,6 +115,7 @@ func NewModelForTest(cfg *config.Config, store *history.Store) Model {
 			cfg:       nil,
 			keys:      DefaultKeyMap(),
 			help:      help.New(),
+			toast:     components.NewToast(),
 		}
 	}
 
@@ -128,6 +134,7 @@ func NewModelForTest(cfg *config.Config, store *history.Store) Model {
 		restore:    views.NewRestore(ctx),
 		settings:   views.NewSettings(ctx),
 		logs:       views.NewLogs(ctx),
+		toast:      components.NewToast(),
 	}
 }
 
