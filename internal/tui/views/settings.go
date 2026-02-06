@@ -502,7 +502,8 @@ func (m *SettingsModel) refreshMainList() {
 func (m *SettingsModel) refreshFilesList() {
 	items := make([]list.Item, 0, len(m.config.Files)+1)
 	for i, filePath := range m.config.Files {
-		items = append(items, subSettingItem{title: filePath, desc: "", index: i})
+		desc := pathutil.GetPathDesc(filePath)
+		items = append(items, subSettingItem{title: filePath, desc: desc, index: i})
 	}
 	items = append(items, subSettingItem{title: "[+] Add new file", desc: "", index: len(m.config.Files), isAdd: true})
 
@@ -520,7 +521,8 @@ func (m *SettingsModel) refreshFilesList() {
 func (m *SettingsModel) refreshFoldersList() {
 	items := make([]list.Item, 0, len(m.config.Folders)+1)
 	for i, folderPath := range m.config.Folders {
-		items = append(items, subSettingItem{title: folderPath, desc: "", index: i})
+		desc := pathutil.GetPathDesc(folderPath)
+		items = append(items, subSettingItem{title: folderPath, desc: desc, index: i})
 	}
 	items = append(items, subSettingItem{title: "[+] Add new folder", desc: "", index: len(m.config.Folders), isAdd: true})
 

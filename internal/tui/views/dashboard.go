@@ -14,13 +14,15 @@ import (
 
 // DashboardModel represents the dashboard view
 type DashboardModel struct {
-	config     *config.Config
-	width      int
-	height     int
-	lastBackup time.Time
-	fileCount  int
-	selected   int
-	err        error
+	config      *config.Config
+	width       int
+	height      int
+	lastBackup  time.Time
+	fileCount   int
+	totalSize   int64
+	brokenPaths int
+	selected    int
+	err         error
 }
 
 type dashboardAction struct {
@@ -72,6 +74,8 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusMsg:
 		m.lastBackup = msg.lastBackup
 		m.fileCount = msg.fileCount
+		m.totalSize = msg.totalSize
+		m.brokenPaths = msg.brokenPaths
 	}
 	return m, nil
 }
@@ -97,11 +101,27 @@ func (m DashboardModel) View() string {
 			styles.CardLabel.Render("Files Tracked"),
 	)
 
+	card3 := styles.Card.Render(
+		styles.CardTitle.Render(pathutil.FormatSize(m.totalSize)) + "\n" +
+			styles.CardLabel.Render("Total Size"),
+	)
+
+	cards := []string{card1, card2, card3}
+
+	if m.brokenPaths > 0 {
+		warningCard := styles.Card.Render(
+			styles.Error.Render(fmt.Sprintf("⚠ %d", m.brokenPaths)) + "\n" +
+				styles.CardLabel.Render("Broken Paths"),
+		)
+		cards = append(cards, warningCard)
+	}
+
 	var statsBlock string
-	if m.width >= 60 {
-		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, card1, card2)
+	if m.width >= 80 {
+		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 	} else {
-		statsBlock = lipgloss.JoinVertical(lipgloss.Left, card1, card2)
+		// Split into rows if needed, simplified for now
+		statsBlock = lipgloss.JoinHorizontal(lipgloss.Top, cards...)
 	}
 
 	buttonIcons := map[string]string{
@@ -143,13 +163,15 @@ func (m DashboardModel) View() string {
 }
 
 type statusMsg struct {
-	lastBackup time.Time
-	fileCount  int
+	lastBackup  time.Time
+	fileCount   int
+	totalSize   int64
+	brokenPaths int
 }
 
 func (m DashboardModel) refreshStatus() tea.Cmd {
 	return func() tea.Msg {
-		count := len(m.config.Files) + len(m.config.Folders)
+		result := pathutil.ScanPaths(m.config.Files, m.config.Folders, m.config.Exclude)
 
 		var lastBackup time.Time
 		dir := pathutil.ExpandHome(m.config.BackupDir)
@@ -162,8 +184,10 @@ func (m DashboardModel) refreshStatus() tea.Cmd {
 		}
 
 		return statusMsg{
-			lastBackup: lastBackup,
-			fileCount:  count,
+			lastBackup:  lastBackup,
+			fileCount:   result.TotalFiles,
+			totalSize:   result.TotalSize,
+			brokenPaths: len(result.BrokenPaths),
 		}
 	}
 }
