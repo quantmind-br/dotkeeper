@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/config"
@@ -111,10 +112,7 @@ func getPassword(passwordFile string) (string, error) {
 			return "", fmt.Errorf("failed to read password file: %w", err)
 		}
 		// Trim trailing newline if present
-		password := string(data)
-		if len(password) > 0 && password[len(password)-1] == '\n' {
-			password = password[:len(password)-1]
-		}
+		password := strings.TrimSuffix(string(data), "\n")
 		return password, nil
 	}
 
