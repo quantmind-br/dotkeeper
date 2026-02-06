@@ -331,6 +331,17 @@ func (m *SettingsModel) setDisabledPathsForType(lt pathListType, paths []string)
 	}
 }
 
+func (m *SettingsModel) togglePathDisabled(lt pathListType, path string) {
+	disabled := m.disabledPathsForType(lt)
+	for i, d := range disabled {
+		if d == path {
+			m.setDisabledPathsForType(lt, append(disabled[:i], disabled[i+1:]...))
+			return
+		}
+	}
+	m.setDisabledPathsForType(lt, append(disabled, path))
+}
+
 func (m *SettingsModel) listForType(lt pathListType) *list.Model {
 	if lt == pathListFiles {
 		return &m.filesList
@@ -361,7 +372,6 @@ func (m SettingsModel) handleBrowsingPathsInput(msg tea.KeyMsg, lt pathListType)
 	}
 
 	paths := m.pathsForType(lt)
-	disabledPaths := m.disabledPathsForType(lt)
 	pathList := m.listForType(lt)
 	browsingState := m.browsingStateForType(lt)
 
@@ -377,18 +387,7 @@ func (m SettingsModel) handleBrowsingPathsInput(msg tea.KeyMsg, lt pathListType)
 			return m, nil
 		}
 		path := paths[selected.index]
-		found := false
-		for i, d := range disabledPaths {
-			if d == path {
-				newDisabled := append(disabledPaths[:i], disabledPaths[i+1:]...)
-				m.setDisabledPathsForType(lt, newDisabled)
-				found = true
-				break
-			}
-		}
-		if !found {
-			m.setDisabledPathsForType(lt, append(disabledPaths, path))
-		}
+		m.togglePathDisabled(lt, path)
 		m.refreshPathList(lt)
 		return m, nil
 	case "i":
