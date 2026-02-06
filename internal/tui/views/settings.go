@@ -2,16 +2,16 @@ package views
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
-	"os"
+	"github.com/diogo/dotkeeper/internal/tui/components"
 )
 
 // Keep lipgloss import for cursor/prompt styles (component configuration)
@@ -38,10 +38,11 @@ func (i settingItem) Description() string { return i.value }
 func (i settingItem) FilterValue() string { return i.label }
 
 type subSettingItem struct {
-	title string
-	desc  string
-	index int
-	isAdd bool
+	title    string
+	desc     string
+	index    int
+	isAdd    bool
+	disabled bool
 }
 
 func (i subSettingItem) Title() string       { return i.title }
@@ -50,16 +51,19 @@ func (i subSettingItem) FilterValue() string { return i.title }
 
 // SettingsModel represents the settings view
 type SettingsModel struct {
-	config      *config.Config
-	width       int
-	height      int
-	state       settingsState
-	mainList    list.Model
-	filesList   list.Model
-	foldersList list.Model
-	textInput   textinput.Model
-	status      string
-	errMsg      string
+	config        *config.Config
+	width         int
+	height        int
+	state         settingsState
+	mainList      list.Model
+	filesList     list.Model
+	foldersList   list.Model
+	pathCompleter components.PathCompleter
+	status        string
+	errMsg        string
+
+	inspecting  bool
+	inspectInfo string
 
 	editingFieldIndex int
 	subEditParent     settingsState
@@ -70,9 +74,9 @@ type SettingsModel struct {
 
 // NewSettings creates a new settings model
 func NewSettings(cfg *config.Config) SettingsModel {
-	ti := textinput.New()
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	pc := components.NewPathCompleter()
+	pc.Input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
+	pc.Input.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
 	mainList := list.New([]list.Item{}, NewListDelegate(), 80, 18)
 	mainList.SetShowTitle(false)
@@ -103,15 +107,15 @@ func NewSettings(cfg *config.Config) SettingsModel {
 	fp.ShowHidden = true
 
 	m := SettingsModel{
-		config:      cfg,
-		width:       80,
-		height:      24,
-		state:       stateListNavigating,
-		mainList:    mainList,
-		filesList:   filesList,
-		foldersList: foldersList,
-		textInput:   ti,
-		filePicker:  fp,
+		config:        cfg,
+		width:         80,
+		height:        24,
+		state:         stateListNavigating,
+		mainList:      mainList,
+		filesList:     filesList,
+		foldersList:   foldersList,
+		pathCompleter: pc,
+		filePicker:    fp,
 	}
 	m.refreshMainList()
 	m.refreshFilesList()
@@ -154,6 +158,11 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case components.CompletionResultMsg:
+		var cmd tea.Cmd
+		m.pathCompleter, cmd = m.pathCompleter.Update(msg)
+		return m, cmd
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -335,24 +344,24 @@ func (m SettingsModel) handleEditingFieldInput(msg tea.KeyMsg) (tea.Model, tea.C
 	switch msg.String() {
 	case "esc":
 		m.state = stateListNavigating
-		m.textInput.Blur()
-		m.textInput.SetValue("")
+		m.pathCompleter.Input.Blur()
+		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
 		return m, nil
 
 	case "enter":
-		value := strings.TrimSpace(m.textInput.Value())
+		value := strings.TrimSpace(m.pathCompleter.Input.Value())
 		m.saveFieldValue(value)
 		m.refreshMainList()
 		m.state = stateListNavigating
-		m.textInput.Blur()
-		m.textInput.SetValue("")
+		m.pathCompleter.Input.Blur()
+		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
 		return m, nil
 
 	default:
 		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
+		m.pathCompleter, cmd = m.pathCompleter.Update(msg)
 		return m, cmd
 	}
 }
@@ -361,42 +370,63 @@ func (m SettingsModel) handleEditingSubItemInput(msg tea.KeyMsg) (tea.Model, tea
 	switch msg.String() {
 	case "esc":
 		m.state = m.subEditParent
-		m.textInput.Blur()
-		m.textInput.SetValue("")
+		m.pathCompleter.Input.Blur()
+		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
 		return m, nil
 
 	case "enter":
-		value := strings.TrimSpace(m.textInput.Value())
+		value := strings.TrimSpace(m.pathCompleter.Input.Value())
+		if pathutil.IsGlobPattern(value) {
+			results, err := pathutil.ResolveGlob(value, m.config.Exclude)
+			if err != nil {
+				m.errMsg = err.Error()
+				return m, nil
+			}
+			if m.subEditParent == stateBrowsingFiles {
+				m.config.Files = append(m.config.Files, results...)
+			} else {
+				m.config.Folders = append(m.config.Folders, results...)
+			}
+			m.status = fmt.Sprintf("Added %d paths from glob", len(results))
+			m.refreshFilesList()
+			m.refreshFoldersList()
+			m.refreshMainList()
+			m.state = m.subEditParent
+			m.pathCompleter.Input.Blur()
+			m.pathCompleter.Input.SetValue("")
+			m.resizeLists()
+			return m, nil
+		}
 		m.saveFieldValue(value)
 		m.refreshFilesList()
 		m.refreshFoldersList()
 		m.refreshMainList()
 		m.state = m.subEditParent
-		m.textInput.Blur()
-		m.textInput.SetValue("")
+		m.pathCompleter.Input.Blur()
+		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
 		return m, nil
 
 	default:
 		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
+		m.pathCompleter, cmd = m.pathCompleter.Update(msg)
 		return m, cmd
 	}
 }
 
 // startEditingField initializes field editing
 func (m *SettingsModel) startEditingField() {
-	m.textInput.Focus()
+	m.pathCompleter.Input.Focus()
 	switch m.editingFieldIndex {
 	case 0:
-		m.textInput.SetValue(m.config.BackupDir)
+		m.pathCompleter.Input.SetValue(m.config.BackupDir)
 	case 1:
-		m.textInput.SetValue(m.config.GitRemote)
+		m.pathCompleter.Input.SetValue(m.config.GitRemote)
 	case 4:
-		m.textInput.SetValue(m.config.Schedule)
+		m.pathCompleter.Input.SetValue(m.config.Schedule)
 	default:
-		m.textInput.SetValue("")
+		m.pathCompleter.Input.SetValue("")
 	}
 }
 
@@ -404,8 +434,8 @@ func (m *SettingsModel) startEditingSubItem(parent settingsState, index int, val
 	m.subEditParent = parent
 	m.subEditIndex = index
 	m.state = stateEditingSubItem
-	m.textInput.Focus()
-	m.textInput.SetValue(value)
+	m.pathCompleter.Input.Focus()
+	m.pathCompleter.Input.SetValue(value)
 	m.resizeLists()
 }
 
@@ -473,6 +503,28 @@ func (m *SettingsModel) saveConfig() {
 	m.errMsg = ""
 }
 
+func getInspectInfo(path string) string {
+	expanded := pathutil.ExpandHome(path)
+	info, err := os.Stat(expanded)
+	if err != nil {
+		return fmt.Sprintf("Path: %s\nStatus: NOT FOUND", path)
+	}
+	modTime := info.ModTime().Format("2006-01-02 15:04:05")
+	perm := fmt.Sprintf("%o", info.Mode().Perm())
+	fileType := "regular file"
+	if info.IsDir() {
+		fileType = "directory"
+	}
+	// Check if symlink
+	linfo, _ := os.Lstat(expanded)
+	if linfo != nil && linfo.Mode()&os.ModeSymlink != 0 {
+		target, _ := os.Readlink(expanded)
+		fileType = fmt.Sprintf("symlink → %s", target)
+	}
+	return fmt.Sprintf("Path: %s\nSize: %s | Modified: %s | Permissions: %s\nType: %s",
+		path, pathutil.FormatSize(info.Size()), modTime, perm, fileType)
+}
+
 func (m *SettingsModel) refreshMainList() {
 	schedule := m.config.Schedule
 	if schedule == "" {
@@ -500,10 +552,19 @@ func (m *SettingsModel) refreshMainList() {
 }
 
 func (m *SettingsModel) refreshFilesList() {
+	disabledSet := make(map[string]bool)
+	for _, d := range m.config.DisabledFiles {
+		disabledSet[d] = true
+	}
+
 	items := make([]list.Item, 0, len(m.config.Files)+1)
 	for i, filePath := range m.config.Files {
 		desc := pathutil.GetPathDesc(filePath)
-		items = append(items, subSettingItem{title: filePath, desc: desc, index: i})
+		isDisabled := disabledSet[filePath]
+		if isDisabled {
+			desc = "[disabled] " + desc
+		}
+		items = append(items, subSettingItem{title: filePath, desc: desc, index: i, disabled: isDisabled})
 	}
 	items = append(items, subSettingItem{title: "[+] Add new file", desc: "", index: len(m.config.Files), isAdd: true})
 
@@ -519,10 +580,19 @@ func (m *SettingsModel) refreshFilesList() {
 }
 
 func (m *SettingsModel) refreshFoldersList() {
+	disabledSet := make(map[string]bool)
+	for _, d := range m.config.DisabledFolders {
+		disabledSet[d] = true
+	}
+
 	items := make([]list.Item, 0, len(m.config.Folders)+1)
 	for i, folderPath := range m.config.Folders {
 		desc := pathutil.GetPathDesc(folderPath)
-		items = append(items, subSettingItem{title: folderPath, desc: desc, index: i})
+		isDisabled := disabledSet[folderPath]
+		if isDisabled {
+			desc = "[disabled] " + desc
+		}
+		items = append(items, subSettingItem{title: folderPath, desc: desc, index: i, disabled: isDisabled})
 	}
 	items = append(items, subSettingItem{title: "[+] Add new folder", desc: "", index: len(m.config.Folders), isAdd: true})
 
@@ -574,7 +644,7 @@ func (m SettingsModel) View() string {
 		b.WriteString(m.mainList.View())
 		helpText = "↑/↓: Navigate | Enter: Edit | a: Add | s: Save | Esc: Exit"
 	case stateEditingField:
-		b.WriteString("Editing: " + m.textInput.View() + "\n\n")
+		b.WriteString("Editing: " + m.pathCompleter.View() + "\n\n")
 		b.WriteString(m.mainList.View())
 		helpText = "Enter: Save field | Esc: Cancel"
 	case stateBrowsingFiles:
@@ -593,7 +663,7 @@ func (m SettingsModel) View() string {
 			listView = m.foldersList.View()
 		}
 		b.WriteString(styles.Subtitle.Render(title) + "\n")
-		b.WriteString("Value: " + m.textInput.View() + "\n\n")
+		b.WriteString("Value: " + m.pathCompleter.View() + "\n\n")
 		b.WriteString(listView)
 		helpText = "Enter: Save item | Esc: Cancel"
 	case stateFilePickerActive:
