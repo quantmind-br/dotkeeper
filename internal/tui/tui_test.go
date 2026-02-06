@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
+	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
@@ -22,6 +23,10 @@ func testConfig() *config.Config {
 func stripANSITest(s string) string {
 	re := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	return re.ReplaceAllString(s, "")
+}
+
+func testProgramContext() *ProgramContext {
+	return NewProgramContext(testConfig(), history.NewStoreWithPath("/tmp/dotkeeper-test-history.jsonl"))
 }
 
 func sendKey(model tea.Model, keyStr string) (tea.Model, tea.Cmd) {
@@ -281,7 +286,7 @@ func TestSetupMode_CompleteTransitionsToDashboard(t *testing.T) {
 	m := Model{
 		state:     SetupView,
 		setupMode: true,
-		setup:     views.NewSetup(views.NewProgramContext(nil, nil)),
+		setup:     views.NewSetup(NewProgramContext(nil, nil)),
 	}
 	if !m.setupMode {
 		t.Fatal("expected setup mode model")
@@ -301,5 +306,49 @@ func TestSetupMode_CompleteTransitionsToDashboard(t *testing.T) {
 	}
 	if reflect.ValueOf(m.dashboard).IsZero() || reflect.ValueOf(m.backupList).IsZero() || reflect.ValueOf(m.restore).IsZero() || reflect.ValueOf(m.settings).IsZero() || reflect.ValueOf(m.logs).IsZero() {
 		t.Fatal("expected all main views initialized after setup completion")
+	}
+}
+
+func TestProgramContext_CarriesConfigAndStore(t *testing.T) {
+	cfg := testConfig()
+	store := history.NewStoreWithPath(t.TempDir() + "/history.jsonl")
+	ctx := NewProgramContext(cfg, store)
+
+	if ctx.Config != cfg {
+		t.Fatal("expected context to carry config pointer")
+	}
+	if ctx.Store != store {
+		t.Fatal("expected context to carry history store pointer")
+	}
+	if ctx.Width != 0 || ctx.Height != 0 {
+		t.Fatalf("expected initial dimensions 0x0, got %dx%d", ctx.Width, ctx.Height)
+	}
+}
+
+func TestProgramContext_DimensionsUpdatedOnResize(t *testing.T) {
+	ctx := testProgramContext()
+	d := views.NewDashboard((*views.ProgramContext)(ctx))
+
+	updated, _ := d.Update(tea.WindowSizeMsg{Width: 120, Height: 44})
+	d = updated.(views.DashboardModel)
+
+	if ctx.Width != 120 || ctx.Height != 44 {
+		t.Fatalf("expected context dimensions updated to 120x44, got %dx%d", ctx.Width, ctx.Height)
+	}
+}
+
+func TestNewModelForTest_UsesProgramContext(t *testing.T) {
+	cfg := testConfig()
+	store := history.NewStoreWithPath(t.TempDir() + "/history.jsonl")
+	m := NewModelForTest(cfg, store)
+
+	if m.ctx == nil {
+		t.Fatal("expected model context to be initialized")
+	}
+	if m.ctx.Config != cfg {
+		t.Fatal("expected model context config pointer to match input")
+	}
+	if m.ctx.Store != store {
+		t.Fatal("expected model context store pointer to match input")
 	}
 }

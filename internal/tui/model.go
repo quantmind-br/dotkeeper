@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
@@ -39,7 +40,9 @@ type Model struct {
 	err         error
 	showingHelp bool
 	history     *history.Store
-	ctx         *views.ProgramContext
+	ctx         *ProgramContext
+	keys        AppKeyMap
+	help        help.Model
 
 	// Setup mode
 	setupMode bool
@@ -65,6 +68,8 @@ func NewModel() Model {
 			setup:     views.NewSetup(ctx),
 			ctx:       ctx,
 			cfg:       nil,
+			keys:      DefaultKeyMap(),
+			help:      help.New(),
 		}
 	}
 
@@ -82,6 +87,8 @@ func NewModel() Model {
 		cfg:        cfg,
 		history:    store,
 		ctx:        ctx,
+		keys:       DefaultKeyMap(),
+		help:       help.New(),
 		dashboard:  views.NewDashboard(ctx),
 		backupList: views.NewBackupList(ctx),
 		restore:    views.NewRestore(ctx),
@@ -101,6 +108,8 @@ func NewModelForTest(cfg *config.Config, store *history.Store) Model {
 			setup:     views.NewSetup(ctx),
 			ctx:       ctx,
 			cfg:       nil,
+			keys:      DefaultKeyMap(),
+			help:      help.New(),
 		}
 	}
 
@@ -112,6 +121,8 @@ func NewModelForTest(cfg *config.Config, store *history.Store) Model {
 		cfg:        cfg,
 		history:    store,
 		ctx:        ctx,
+		keys:       DefaultKeyMap(),
+		help:       help.New(),
 		dashboard:  views.NewDashboard(ctx),
 		backupList: views.NewBackupList(ctx),
 		restore:    views.NewRestore(ctx),

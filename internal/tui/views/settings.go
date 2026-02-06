@@ -821,3 +821,7 @@ func (m SettingsModel) StatusHelpText() string {
 func (m SettingsModel) IsEditing() bool {
 	return m.state != stateListNavigating
 }
+
+func (m SettingsModel) IsInputActive() bool {
+	return m.IsEditing()
+}

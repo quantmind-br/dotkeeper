@@ -1,0 +1,4 @@
+- Standardized all TUI views to use ProgramContext for shared state (Config, Store, Dimensions).
+- Updated LogsModel and SettingsModel constructors and structs.
+- Fixed build errors in model.go by ensuring ProgramContext is passed to all view constructors.
+- Updated all related tests (logs_test.go, settings_test.go, resize_test.go) to use the new constructor signatures.

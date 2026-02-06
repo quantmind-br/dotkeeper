@@ -5,6 +5,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// AdaptiveColor palette for light/dark terminal support
+var (
+	AccentColor         = lipgloss.AdaptiveColor{Light: "#6C3EC2", Dark: "#7D56F4"}
+	TextColor           = lipgloss.AdaptiveColor{Light: "#333333", Dark: "#FFFFFF"}
+	MutedColor          = lipgloss.AdaptiveColor{Light: "#999999", Dark: "#AAAAAA"}
+	SecondaryMutedColor = lipgloss.AdaptiveColor{Light: "#666666", Dark: "#666666"}
+	ErrorColor          = lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF5555"}
+	SuccessColor        = lipgloss.AdaptiveColor{Light: "#00AA00", Dark: "#04B575"}
+	BgColor             = lipgloss.AdaptiveColor{Light: "#F0F0F0", Dark: "#2A2A2A"}
+	BorderColor         = lipgloss.AdaptiveColor{Light: "#CCCCCC", Dark: "#444444"}
+)
+
 // Responsive breakpoint constants
 const (
 	BreakpointWide    = 80 // Full horizontal layout (cards, tabs)
@@ -50,90 +62,90 @@ type Styles struct {
 var defaultStyles = Styles{
 	AppTitle: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
+		Foreground(AccentColor).
 		MarginLeft(2),
 	ContentArea: lipgloss.NewStyle().MarginLeft(2),
 	GlobalHelp: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
+		Foreground(SecondaryMutedColor).
 		MarginLeft(2),
-	HelpKey:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")),
-	HelpTitle:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")),
-	HelpSection: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#AAAAAA")),
+	HelpKey:     lipgloss.NewStyle().Bold(true).Foreground(AccentColor),
+	HelpTitle:   lipgloss.NewStyle().Bold(true).Foreground(AccentColor),
+	HelpSection: lipgloss.NewStyle().Bold(true).Foreground(MutedColor),
 	HelpOverlay: lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")).
+		BorderForeground(AccentColor).
 		Padding(1, 2),
 	Title: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
+		Foreground(AccentColor).
 		MarginLeft(2),
 	Subtitle: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
+		Foreground(AccentColor).
 		MarginLeft(2),
 	Normal: lipgloss.NewStyle().
 		MarginLeft(2),
 	Selected: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
-		Background(lipgloss.Color("#2A2A2A")).
+		Foreground(AccentColor).
+		Background(BgColor).
 		Bold(true),
 	Help: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
+		Foreground(SecondaryMutedColor).
 		MarginLeft(2),
 	Error: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF5555")),
+		Foreground(ErrorColor),
 	Success: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#04B575")),
+		Foreground(SuccessColor),
 	Label: lipgloss.NewStyle().
 		Bold(true),
 	Value: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#AAAAAA")),
+		Foreground(MutedColor),
 	Hint: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
+		Foreground(SecondaryMutedColor).
 		Italic(true),
 	TabActive: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#7D56F4")).
+		Foreground(AccentColor).
 		Underline(true),
 	TabInactive: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")),
+		Foreground(SecondaryMutedColor),
 	TabSeparator: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#444444")),
+		Foreground(BorderColor),
 	ViewContainer: lipgloss.NewStyle().MarginLeft(2),
 	StatusBar:     lipgloss.NewStyle().MarginTop(1),
 	Card: lipgloss.NewStyle().
-		Background(lipgloss.Color("#2A2A2A")).
+		Background(BgColor).
 		Padding(1, 2).
 		MarginRight(2),
 	CardTitle: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")),
+		Foreground(TextColor),
 	CardLabel: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#AAAAAA")),
+		Foreground(MutedColor),
 	ActionButton: lipgloss.NewStyle().
-		Background(lipgloss.Color("#2A2A2A")).
+		Background(BgColor).
 		Padding(0, 2).
 		MarginRight(1),
 	ActionButtonKey: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7D56F4")).
+		Foreground(AccentColor).
 		Bold(true),
 	ButtonSelected: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#7D56F4")).
+		Foreground(TextColor).
+		Background(AccentColor).
 		Padding(0, 2).
 		MarginRight(1).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")),
+		BorderForeground(AccentColor),
 	ButtonNormal: lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#AAAAAA")).
-		Background(lipgloss.Color("#2A2A2A")).
+		Foreground(MutedColor).
+		Background(BgColor).
 		Padding(0, 2).
 		MarginRight(1).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#444444")),
+		BorderForeground(BorderColor),
 	ViewportBorder: lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7D56F4")),
+		BorderForeground(AccentColor),
 }
 
 // DefaultStyles returns the default styles
@@ -144,12 +156,12 @@ func DefaultStyles() Styles {
 // NewListDelegate returns a new list delegate with common styling
 func NewListDelegate() list.DefaultDelegate {
 	d := list.NewDefaultDelegate()
-	d.Styles.NormalTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 0, 0, 2)
-	d.Styles.NormalDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA")).Padding(0, 0, 0, 2)
-	d.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true).Padding(0, 0, 0, 2)
-	d.Styles.SelectedDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Padding(0, 0, 0, 2)
-	d.Styles.SelectedTitle = d.Styles.SelectedTitle.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(lipgloss.Color("#7D56F4"))
-	d.Styles.SelectedDesc = d.Styles.SelectedDesc.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(lipgloss.Color("#7D56F4"))
+	d.Styles.NormalTitle = lipgloss.NewStyle().Foreground(TextColor).Padding(0, 0, 0, 2)
+	d.Styles.NormalDesc = lipgloss.NewStyle().Foreground(MutedColor).Padding(0, 0, 0, 2)
+	d.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(AccentColor).Bold(true).Padding(0, 0, 0, 2)
+	d.Styles.SelectedDesc = lipgloss.NewStyle().Foreground(AccentColor).Padding(0, 0, 0, 2)
+	d.Styles.SelectedTitle = d.Styles.SelectedTitle.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(AccentColor)
+	d.Styles.SelectedDesc = d.Styles.SelectedDesc.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(AccentColor)
 	return d
 }
 

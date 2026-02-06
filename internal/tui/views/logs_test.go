@@ -321,7 +321,7 @@ func TestLogsUpdate_WithErrorMessage(t *testing.T) {
 	cfg := &config.Config{}
 	m := NewLogs(NewProgramContext(cfg, nil))
 
-	errMsg := logsErrorMsg{err: fmt.Errorf("test error")}
+	errMsg := ErrorMsg{Source: "logs", Err: fmt.Errorf("test error")}
 	model, _ := m.Update(errMsg)
 	m = model.(LogsModel)
 

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/pathutil"
@@ -21,6 +22,8 @@ type DashboardModel struct {
 	brokenPaths int
 	selected    int
 	err         error
+	spinner     spinner.Model
+	loading     bool
 }
 
 type dashboardAction struct {
@@ -37,14 +40,17 @@ var dashboardActions = []dashboardAction{
 
 // NewDashboard creates a new dashboard model
 func NewDashboard(ctx *ProgramContext) DashboardModel {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
 	return DashboardModel{
-		ctx: ensureProgramContext(ctx),
+		ctx:     ensureProgramContext(ctx),
+		spinner: s,
 	}
 }
 
 // Init initializes the dashboard
 func (m DashboardModel) Init() tea.Cmd {
-	return m.refreshStatus()
+	return tea.Batch(m.refreshStatus(), m.spinner.Tick)
 }
 
 // Update handles messages
@@ -53,6 +59,12 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left", "up":
@@ -74,6 +86,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.fileCount = msg.fileCount
 		m.totalSize = msg.totalSize
 		m.brokenPaths = msg.brokenPaths
+		m.loading = false
 	}
 	return m, nil
 }
@@ -81,6 +94,14 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the dashboard
 func (m DashboardModel) View() string {
 	st := styles.DefaultStyles()
+
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nLoading dashboard...",
+		)
+	}
 
 	var lastBackupVal string
 	if !m.lastBackup.IsZero() {
@@ -160,7 +181,8 @@ type statusMsg struct {
 	brokenPaths int
 }
 
-func (m DashboardModel) refreshStatus() tea.Cmd {
+func (m *DashboardModel) refreshStatus() tea.Cmd {
+	m.loading = true
 	return func() tea.Msg {
 		if m.ctx.Config == nil {
 			return statusMsg{}
@@ -187,7 +209,7 @@ func (m DashboardModel) refreshStatus() tea.Cmd {
 	}
 }
 
-func (m DashboardModel) Refresh() tea.Cmd {
+func (m *DashboardModel) Refresh() tea.Cmd {
 	return m.refreshStatus()
 }
 
@@ -199,4 +221,12 @@ func (m DashboardModel) HelpBindings() []HelpEntry {
 		{"arrow keys", "Select action"},
 		{"enter", "Open selected action"},
 	}
+}
+
+func (m DashboardModel) StatusHelpText() string {
+	return "←/→: select | enter: open | b/r/s: shortcuts"
+}
+
+func (m DashboardModel) IsInputActive() bool {
+	return false
 }

@@ -11,5 +11,10 @@ import (
 type ProgramContext = views.ProgramContext
 
 func NewProgramContext(cfg *config.Config, store *history.Store) *ProgramContext {
-	return views.NewProgramContext(cfg, store)
+	return &views.ProgramContext{
+		Config: cfg,
+		Store:  store,
+		Width:  0,
+		Height: 0,
+	}
 }

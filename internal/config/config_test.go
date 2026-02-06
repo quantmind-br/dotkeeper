@@ -348,3 +348,136 @@ func TestConfigNewFieldsRoundtrip(t *testing.T) {
 		t.Errorf("DisabledFiles roundtrip failed: %v", loaded.DisabledFiles)
 	}
 }
+
+// TestLoadFromPath_FileNotFoundError tests loading from non-existent file
+func TestLoadFromPath_FileNotFoundError(t *testing.T) {
+	_, err := LoadFromPath("/nonexistent/path/to/config.yaml")
+	if err == nil {
+		t.Error("LoadFromPath should fail for non-existent file")
+	}
+}
+
+// TestLoadFromPath_InvalidYAML tests loading from file with invalid YAML
+func TestLoadFromPath_InvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Write invalid YAML (unquoted colon causes parsing error)
+	invalidYAML := `backup_dir: /tmp/backup
+git_remote: https://github.com/user/repo.git
+files:
+  - .bashrc:invalid
+  :colon at start
+folders:
+  - .config
+`
+	if err := os.WriteFile(configPath, []byte(invalidYAML), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	_, err := LoadFromPath(configPath)
+	if err == nil {
+		t.Error("LoadFromPath should fail for invalid YAML")
+	}
+}
+
+// TestLoadOrDefault_LoadsExistingConfig tests LoadOrDefault when file exists
+func TestLoadOrDefault_LoadsExistingConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Write a valid config
+	testConfig := `backup_dir: /custom/backup
+git_remote: https://github.com/custom/repo.git
+files:
+  - .bashrc
+folders:
+  - .config
+schedule: "0 3 * * *"
+notifications: false
+`
+	if err := os.WriteFile(configPath, []byte(testConfig), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cfg, err := LoadOrDefault(configPath)
+	if err != nil {
+		t.Fatalf("LoadOrDefault failed: %v", err)
+	}
+
+	// Should load the existing config, not the default
+	if cfg.BackupDir != "/custom/backup" {
+		t.Errorf("LoadOrDefault should load existing config, got BackupDir=%s", cfg.BackupDir)
+	}
+	if cfg.GitRemote != "https://github.com/custom/repo.git" {
+		t.Errorf("LoadOrDefault should load existing config, got GitRemote=%s", cfg.GitRemote)
+	}
+}
+
+// TestSaveToPath_MkdirFailure tests SaveToPath when mkdir fails
+func TestSaveToPath_MkdirFailure(t *testing.T) {
+	cfg := &Config{
+		BackupDir:     "/tmp/backup",
+		GitRemote:     "https://github.com/user/repo.git",
+		Files:         []string{".bashrc"},
+		Folders:       []string{".config"},
+		Schedule:      "0 2 * * *",
+		Notifications: true,
+	}
+
+	// Try to save to /dev/null which is not a valid directory for creating files
+	err := cfg.SaveToPath("/dev/null/invalid/config.yaml")
+	if err == nil {
+		t.Error("SaveToPath should fail when mkdir fails")
+	}
+}
+
+// TestActiveFolders_EmptyDisabledFolders tests ActiveFolders with empty DisabledFolders
+func TestActiveFolders_EmptyDisabledFolders(t *testing.T) {
+	cfg := &Config{
+		Folders:         []string{".config", ".ssh", ".local"},
+		DisabledFolders: []string{},
+	}
+	active := cfg.ActiveFolders()
+	if len(active) != 3 {
+		t.Errorf("ActiveFolders() with no disabled = %v, want all 3 folders", active)
+	}
+}
+
+// TestActiveFolders_AllDisabled tests ActiveFolders with all folders disabled
+func TestActiveFolders_AllDisabled(t *testing.T) {
+	cfg := &Config{
+		Folders:         []string{".config", ".ssh"},
+		DisabledFolders: []string{".config", ".ssh"},
+	}
+	active := cfg.ActiveFolders()
+	if len(active) != 0 {
+		t.Errorf("ActiveFolders() with all disabled = %v, want empty list", active)
+	}
+}
+
+// TestSave_FullPath tests Save method which uses default path
+func TestSave_GetConfigPathFlow(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	cfg := &Config{
+		BackupDir:     tmpDir,
+		GitRemote:     "https://github.com/user/repo.git",
+		Files:         []string{".bashrc"},
+		Folders:       []string{".config"},
+		Schedule:      "0 2 * * *",
+		Notifications: true,
+	}
+
+	// Save should use default path from GetConfigPath
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save() failed: %v", err)
+	}
+
+	// Verify file was created at default location
+	configPath := filepath.Join(tmpDir, "dotkeeper", "config.yaml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("Config file not created at default location: %v", err)
+	}
+}

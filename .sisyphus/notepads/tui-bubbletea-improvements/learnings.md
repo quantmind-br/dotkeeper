@@ -5,3 +5,7 @@
 - Setup transition test is most stable when starting from NewModelForTest(nil, nil) and pre-saving config so Update(SetupCompleteMsg) follows real load path.
 - For input-lock behavior, entering SettingsView edit mode via Enter makes IsEditing() true and correctly blocks Tab navigation.
 - Existing internal/tui/views help/input-active tests are currently failing in baseline; race run failure is pre-existing and unrelated to this task scope.
+
+- ProgramContext introduced at internal/tui/context.go (tui alias to views context) to avoid Go import cycles while exposing tui-level API.
+- All TUI view constructors now accept shared context and consume ctx.Config/ctx.Store/ctx.Width/ctx.Height, removing config/store/size prop drilling.
+- Resize assertions in view tests should validate ctx.Width/ctx.Height, not per-view width/height fields.

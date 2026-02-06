@@ -109,14 +109,15 @@ func TestView_ContainsGlobalHelp(t *testing.T) {
 	m := setupModelWithConfig(t)
 
 	view := stripANSI(m.View())
-	// Check for global help elements
-	if !strings.Contains(view, "Tab") {
+	viewLower := strings.ToLower(view)
+	// Check for global help elements (bubbles/help uses capitalized keys)
+	if !strings.Contains(viewLower, "tab") {
 		t.Errorf("view should contain Tab help, got: %s", view)
 	}
-	if !strings.Contains(view, "quit") {
-		t.Errorf("view should contain quit help, got: %s", view)
+	if !strings.Contains(viewLower, "quit") {
+		t.Errorf("view should contain Quit help, got: %s", view)
 	}
-	if !strings.Contains(view, "help") {
+	if !strings.Contains(viewLower, "help") {
 		t.Errorf("view should contain help reference, got: %s", view)
 	}
 }
@@ -140,14 +141,15 @@ func TestView_DifferentStates(t *testing.T) {
 
 			view := m.View()
 			view = stripANSI(view)
+			viewLower := strings.ToLower(view)
 
 			// Should contain the title
 			if !strings.Contains(view, "DotKeeper") {
 				t.Errorf("%s: view should contain 'DotKeeper'", tt.name)
 			}
 
-			// Should contain global help
-			if !strings.Contains(view, "Tab") {
+			// Should contain global help (bubbles/help uses capitalized keys)
+			if !strings.Contains(viewLower, "tab") {
 				t.Errorf("%s: view should contain Tab help", tt.name)
 			}
 
@@ -161,8 +163,8 @@ func TestView_DifferentStates(t *testing.T) {
 
 func TestCurrentViewHelpText(t *testing.T) {
 	tests := []struct {
-		name        string
-		state       ViewState
+		name         string
+		state        ViewState
 		wantContains string
 	}{
 		{name: "dashboard", state: DashboardView, wantContains: "select"},

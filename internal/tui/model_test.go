@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/diogo/dotkeeper/internal/config"
-	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
 func TestNewModel_SetupMode(t *testing.T) {
@@ -107,7 +106,7 @@ func TestNewModel_HistoryStoreError(t *testing.T) {
 func TestModel_Init_SetupMode(t *testing.T) {
 	m := Model{
 		setupMode: true,
-		setup:     views.NewSetup(views.NewProgramContext(nil, nil)),
+		setup:     NewModelForTest(nil, nil).setup,
 	}
 
 	cmd := m.Init()

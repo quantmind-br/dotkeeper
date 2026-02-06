@@ -30,7 +30,7 @@ func (m Model) View() string {
 
 	if m.showingHelp {
 		viewHelp := m.currentViewHelp()
-		return renderHelpOverlay(globalHelp(), viewHelp, m.width, m.height)
+		return renderHelpOverlay(m.help, globalHelp(), viewHelp, m.width, m.height)
 	}
 
 	var b strings.Builder
@@ -62,12 +62,16 @@ func (m Model) View() string {
 
 	b.WriteString("\n\n")
 
+	// Use bubbles/help for the inline help bar
 	viewHelp := m.currentViewHelpText()
 	if viewHelp != "" {
 		b.WriteString(s.GlobalHelp.Render(viewHelp))
 		b.WriteString("\n")
 	}
-	b.WriteString(s.GlobalHelp.Render("Tab/1-5: switch views | q: quit | ?: help"))
+
+	// Build global help bar using bubbles/help adapter
+	helpBar := RenderHelpBar(m.help, globalHelp())
+	b.WriteString(s.GlobalHelp.Render(helpBar))
 	b.WriteString("\n")
 
 	return b.String()
@@ -75,20 +79,24 @@ func (m Model) View() string {
 
 // currentViewHelpText returns the inline help text for the active view's status bar.
 func (m Model) currentViewHelpText() string {
+	var view interface {
+		StatusHelpText() string
+	}
 	switch m.state {
 	case DashboardView:
-		return "←/→: select | enter: open | b/r/s: shortcuts"
+		view = m.dashboard
 	case BackupListView:
-		return m.backupList.StatusHelpText()
+		view = m.backupList
 	case RestoreView:
-		return m.restore.StatusHelpText()
+		view = m.restore
 	case SettingsView:
-		return m.settings.StatusHelpText()
+		view = m.settings
 	case LogsView:
-		return m.logs.StatusHelpText()
+		view = m.logs
 	default:
 		return ""
 	}
+	return view.StatusHelpText()
 }
 
 // currentViewHelp returns help bindings for the currently active view.

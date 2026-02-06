@@ -8,36 +8,6 @@ import (
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
-type KeyMap struct {
-	Quit     key.Binding
-	Tab      key.Binding
-	ShiftTab key.Binding
-	Help     key.Binding
-}
-
-func DefaultKeyMap() KeyMap {
-	return KeyMap{
-		Quit: key.NewBinding(
-			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
-		),
-		Tab: key.NewBinding(
-			key.WithKeys("tab"),
-			key.WithHelp("tab", "next view"),
-		),
-		ShiftTab: key.NewBinding(
-			key.WithKeys("shift+tab"),
-			key.WithHelp("shift+tab", "previous view"),
-		),
-		Help: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "help"),
-		),
-	}
-}
-
-var keys = DefaultKeyMap()
-
 func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 	viewWidth := msg.Width
 	if viewWidth < 0 {
@@ -56,6 +26,7 @@ func (m *Model) propagateWindowSize(msg tea.WindowSizeMsg) tea.Cmd {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	// Type assertion required after Update() - all views implement views.View interface
 	tm, cmd = m.dashboard.Update(viewMsg)
 	m.dashboard = tm.(views.DashboardModel)
 	cmds = append(cmds, cmd)
@@ -111,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cfg = cfg
 			store, _ := history.NewStore()
 			m.history = store
-			m.ctx = views.NewProgramContext(cfg, store)
+			m.ctx = NewProgramContext(cfg, store)
 			m.dashboard = views.NewDashboard(m.ctx)
 			m.backupList = views.NewBackupList(m.ctx)
 			m.restore = views.NewRestore(m.ctx)
@@ -159,17 +130,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		if key.Matches(msg, keys.Help) {
+		if key.Matches(msg, m.keys.Help) {
 			m.showingHelp = !m.showingHelp
 			return m, nil
 		}
 
-		if key.Matches(msg, keys.Quit) {
+		if key.Matches(msg, m.keys.Quit) {
 			m.quitting = true
 			return m, tea.Quit
 		}
 
-		if key.Matches(msg, keys.Tab) {
+		if key.Matches(msg, m.keys.Tab) {
 			if !m.isInputActive() {
 				currentIdx := m.activeTabIndex()
 				nextIdx := (currentIdx + 1) % len(tabOrder)
@@ -184,7 +155,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 
-		if key.Matches(msg, keys.ShiftTab) {
+		if key.Matches(msg, m.keys.ShiftTab) {
 			if !m.isInputActive() {
 				currentIdx := m.activeTabIndex()
 				prevIdx := (currentIdx - 1 + len(tabOrder)) % len(tabOrder)

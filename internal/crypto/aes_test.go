@@ -137,3 +137,194 @@ func TestEmptyCiphertext(t *testing.T) {
 		t.Fatal("decryption of empty ciphertext should fail")
 	}
 }
+
+// TestEncrypt_InvalidKeyLength tests encryption with wrong key size
+func TestEncrypt_InvalidKeyLength(t *testing.T) {
+	plaintext := []byte("test")
+	invalidKey := []byte("short") // Wrong key size
+
+	_, err := Encrypt(plaintext, invalidKey, make([]byte, SaltLength))
+	if err == nil {
+		t.Error("Encrypt with invalid key length should fail")
+	}
+}
+
+// TestDecrypt_InvalidKeyLength tests decryption with wrong key size
+func TestDecrypt_InvalidKeyLength(t *testing.T) {
+	invalidKey := []byte("short") // Wrong key size
+	ciphertext := make([]byte, 100) // Any ciphertext
+
+	_, err := Decrypt(ciphertext, invalidKey)
+	if err == nil {
+		t.Error("Decrypt with invalid key length should fail")
+	}
+}
+
+// TestDecrypt_CiphertextTooShort tests various too-short ciphertexts
+func TestDecrypt_CiphertextTooShort(t *testing.T) {
+	key := make([]byte, AESKeySize)
+
+	tests := []struct {
+		name        string
+		ciphertext  []byte
+	}{
+		{"empty", []byte{}},
+		{"only version", []byte{1}},
+		{"version + partial salt", []byte{1, 2, 3}},
+		{"missing nonce", make([]byte, 1+SaltLength)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Decrypt(tt.ciphertext, key)
+			if err == nil {
+				t.Error("Decrypt should fail with too-short ciphertext")
+			}
+		})
+	}
+}
+
+// TestDecrypt_CorruptedData tests that decryption fails with corrupted data
+func TestDecrypt_CorruptedData(t *testing.T) {
+	plaintext := []byte("Secret data")
+	password := "password"
+
+	salt, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+
+	key := DeriveKey(password, salt)
+	ciphertext, err := Encrypt(plaintext, key, salt)
+	if err != nil {
+		t.Fatalf("encryption failed: %v", err)
+	}
+
+	// Corrupt the ciphertext by changing some bytes
+	// Format: [version(1)][salt(16)][nonce(12)][ciphertext+tag...]
+	// We need to corrupt bytes after the nonce (after position 1+16+12=29)
+	dataStart := 1 + SaltLength + AESNonceSize
+	if len(ciphertext) > dataStart+2 {
+		ciphertext[dataStart] ^= 0xFF   // Corrupt first byte of encrypted data
+		ciphertext[dataStart+1] ^= 0xAA // Corrupt second byte
+	}
+
+	_, err = Decrypt(ciphertext, key)
+	if err == nil {
+		t.Error("Decrypt with corrupted ciphertext should fail")
+	}
+}
+
+// TestEncrypt_EmptyPlaintext tests encryption of empty data
+func TestEncrypt_EmptyPlaintext(t *testing.T) {
+	plaintext := []byte{}
+	password := "password"
+
+	salt, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+
+	key := DeriveKey(password, salt)
+	ciphertext, err := Encrypt(plaintext, key, salt)
+	if err != nil {
+		t.Fatalf("encryption failed: %v", err)
+	}
+
+	// Should be able to decrypt empty data
+	decrypted, err := Decrypt(ciphertext, key)
+	if err != nil {
+		t.Fatalf("decryption failed: %v", err)
+	}
+
+	if len(decrypted) != 0 {
+		t.Errorf("expected empty decrypted data, got %d bytes", len(decrypted))
+	}
+}
+
+// TestEncrypt_LargePlaintext tests encryption of large data
+func TestEncrypt_LargePlaintext(t *testing.T) {
+	password := "password"
+	salt, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+
+	key := DeriveKey(password, salt)
+
+	// Create a large plaintext (10KB)
+	largePlaintext := make([]byte, 10*1024)
+	for i := range largePlaintext {
+		largePlaintext[i] = byte(i % 256)
+	}
+
+	ciphertext, err := Encrypt(largePlaintext, key, salt)
+	if err != nil {
+		t.Fatalf("encryption failed: %v", err)
+	}
+
+	// Verify ciphertext is not empty
+	if len(ciphertext) == 0 {
+		t.Fatal("ciphertext is empty")
+	}
+
+	// Decrypt and verify
+	decrypted, err := Decrypt(ciphertext, key)
+	if err != nil {
+		t.Fatalf("decryption failed: %v", err)
+	}
+
+	if string(decrypted) != string(largePlaintext) {
+		t.Fatal("decrypted text does not match original plaintext")
+	}
+}
+
+// TestEncrypt_SingleByte tests encryption of single byte
+func TestEncrypt_SingleByte(t *testing.T) {
+	plaintext := []byte("X")
+	password := "password"
+
+	salt, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+
+	key := DeriveKey(password, salt)
+	ciphertext, err := Encrypt(plaintext, key, salt)
+	if err != nil {
+		t.Fatalf("encryption failed: %v", err)
+	}
+
+	decrypted, err := Decrypt(ciphertext, key)
+	if err != nil {
+		t.Fatalf("decryption failed: %v", err)
+	}
+
+	if string(decrypted) != string(plaintext) {
+		t.Fatalf("decrypted text does not match: got %q, want %q", string(decrypted), string(plaintext))
+	}
+}
+
+// TestGenerateSalt_MultipleCalls tests that GenerateSalt produces different salts
+func TestGenerateSalt_MultipleCalls(t *testing.T) {
+	salt1, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+	if len(salt1) != SaltLength {
+		t.Errorf("salt length: got %d, want %d", len(salt1), SaltLength)
+	}
+
+	salt2, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("failed to generate salt: %v", err)
+	}
+	if len(salt2) != SaltLength {
+		t.Errorf("salt length: got %d, want %d", len(salt2), SaltLength)
+	}
+
+	// Salts should be different (statistically, unless very unlucky)
+	if string(salt1) == string(salt2) {
+		t.Error("two calls to GenerateSalt should produce different salts")
+	}
+}

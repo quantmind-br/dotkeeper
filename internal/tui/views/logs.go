@@ -6,17 +6,21 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // LogsModel represents the logs view
 type LogsModel struct {
-	ctx    *ProgramContext
-	list   list.Model
-	filter string // "all", "backup", "restore"
-	err    string
+	ctx     *ProgramContext
+	list    list.Model
+	filter  string // "all", "backup", "restore"
+	err     string
+	spinner spinner.Model
+	loading bool
 }
 
 // logItem adapts history.HistoryEntry to list.Item
@@ -63,24 +67,29 @@ func formatBytes(b int64) string {
 func NewLogs(ctx *ProgramContext) LogsModel {
 	l := styles.NewMinimalList()
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+
 	return LogsModel{
-		ctx:    ensureProgramContext(ctx),
-		list:   l,
-		filter: "all",
+		ctx:     ensureProgramContext(ctx),
+		list:    l,
+		filter:  "all",
+		spinner: s,
 	}
 }
 
 // Init initializes the logs view
 func (m LogsModel) Init() tea.Cmd {
-	return m.LoadHistory()
+	return tea.Batch(m.LoadHistory(), m.spinner.Tick)
 }
 
 // LoadHistory loads history from the store. Exported for cross-view refresh.
-func (m LogsModel) LoadHistory() tea.Cmd {
+func (m *LogsModel) LoadHistory() tea.Cmd {
 	if m.ctx.Store == nil {
 		return nil
 	}
 
+	m.loading = true
 	return func() tea.Msg {
 		var entries []history.HistoryEntry
 		var err error
@@ -92,14 +101,13 @@ func (m LogsModel) LoadHistory() tea.Cmd {
 		}
 
 		if err != nil {
-			return logsErrorMsg{err}
+			return ErrorMsg{Source: "logs", Err: err}
 		}
 		return logsLoadedMsg(entries)
 	}
 }
 
 type logsLoadedMsg []history.HistoryEntry
-type logsErrorMsg struct{ err error }
 
 // Update handles messages
 func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -110,7 +118,15 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Adjust list size. Reserve space for chrome
 		m.list.SetSize(msg.Width, msg.Height)
 
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+
 	case logsLoadedMsg:
+		m.loading = false
 		items := make([]list.Item, len(msg))
 		for i, entry := range msg {
 			items[i] = logItem{entry: entry}
@@ -121,8 +137,11 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case logsErrorMsg:
-		m.err = msg.err.Error()
+	case ErrorMsg:
+		if msg.Source == "logs" {
+			m.loading = false
+			m.err = msg.Err.Error()
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -157,6 +176,14 @@ func (m LogsModel) View() string {
 	var s strings.Builder
 	st := styles.DefaultStyles()
 
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nLoading logs...",
+		)
+	}
+
 	// Title
 	title := "Operation History"
 	switch m.filter {
@@ -185,6 +212,15 @@ func (m LogsModel) View() string {
 
 func (m LogsModel) StatusHelpText() string {
 	return fmt.Sprintf("f: filter (%s) | r: refresh | ↑/↓: navigate", m.filter)
+}
+
+// Refresh reloads the history. Alias for LoadHistory to implement Refreshable.
+func (m LogsModel) Refresh() tea.Cmd {
+	return m.LoadHistory()
+}
+
+func (m LogsModel) IsInputActive() bool {
+	return false
 }
 
 func (m LogsModel) HelpBindings() []HelpEntry {

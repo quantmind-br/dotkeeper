@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -32,5 +33,28 @@ func TestGetConfigPath(t *testing.T) {
 	want := filepath.Join(tmp, "dotkeeper", "config.yaml")
 	if path != want {
 		t.Fatalf("GetConfigPath() = %q, want %q", path, want)
+	}
+}
+
+func TestGetConfigDir_FallsBackToHome(t *testing.T) {
+	// Clear XDG_CONFIG_HOME to test fallback to ~/.config
+	tmpDir := t.TempDir()
+	homeBackup := os.Getenv("HOME")
+	t.Setenv("HOME", tmpDir)
+	t.Cleanup(func() {
+		if homeBackup != "" {
+			t.Setenv("HOME", homeBackup)
+		}
+	})
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	dir, err := GetConfigDir()
+	if err != nil {
+		t.Fatalf("GetConfigDir() failed: %v", err)
+	}
+
+	want := filepath.Join(tmpDir, ".config", "dotkeeper")
+	if dir != want {
+		t.Errorf("GetConfigDir() = %q, want %q", dir, want)
 	}
 }

@@ -70,12 +70,20 @@ m.dashboard = model.(views.DashboardModel)  // REQUIRED
 
 ## KEY BINDINGS
 
+Key bindings are instance-specific via the `keys AppKeyMap` field on Model:
+
 ```go
-var keys = KeyMap{
-    Quit: key.NewBinding(key.WithKeys("q", "ctrl+c")),
-    Tab:  key.NewBinding(key.WithKeys("tab")),      // Next view
-    Help: key.NewBinding(key.WithKeys("?")),         // Toggle help
+type Model struct {
+    // ...
+    keys AppKeyMap  // Instance-specific key bindings
 }
+
+// Initialized in NewModel() and NewModelForTest():
+keys: DefaultKeyMap()
+
+// Usage in Update():
+if key.Matches(msg, m.keys.Quit) { ... }
+if key.Matches(msg, m.keys.Tab) { ... }
 ```
 
 Dashboard shortcuts:

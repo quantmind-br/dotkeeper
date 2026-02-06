@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/backup"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
@@ -20,12 +22,15 @@ type BackupSuccessMsg struct {
 	Result *backup.BackupResult
 }
 
+// BackupErrorMsg represents a backup error. Consolidated to ErrorMsg pattern.
 type BackupErrorMsg struct {
 	Error error
 }
 
 type backupDeletedMsg struct{ name string }
-type backupDeleteErrorMsg struct{ err error }
+
+// backupDeleteErrorMsg is consolidated to ErrorMsg with Source="backup-delete".
+type backupDeleteErrorMsg = ErrorMsg
 
 type BackupListModel struct {
 	ctx              *ProgramContext
@@ -36,18 +41,24 @@ type BackupListModel struct {
 	passwordInput    textinput.Model
 	backupStatus     string
 	backupError      string
+	spinner          spinner.Model
+	loading          bool
 }
 
 func NewBackupList(ctx *ProgramContext) BackupListModel {
 	l := styles.NewMinimalList()
 
 	ti := components.NewPasswordInput("Enter password for encryption")
-	ti.Width = 40 // Default width, will be adjusted on WindowSizeMsg
+	ti.Width = 40
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
 
 	return BackupListModel{
 		ctx:           ensureProgramContext(ctx),
 		list:          l,
 		passwordInput: ti,
+		spinner:       s,
 	}
 }
 
@@ -55,7 +66,8 @@ func (m BackupListModel) Init() tea.Cmd {
 	return m.Refresh()
 }
 
-func (m BackupListModel) Refresh() tea.Cmd {
+func (m *BackupListModel) Refresh() tea.Cmd {
+	m.loading = true
 	return func() tea.Msg {
 		if m.ctx.Config == nil {
 			return backupsLoadedMsg([]list.Item{})
@@ -64,7 +76,8 @@ func (m BackupListModel) Refresh() tea.Cmd {
 	}
 }
 
-func (m BackupListModel) runBackup(password string) tea.Cmd {
+func (m *BackupListModel) runBackup(password string) tea.Cmd {
+	m.loading = true
 	return func() tea.Msg {
 		if m.ctx.Config == nil {
 			return BackupErrorMsg{Error: fmt.Errorf("missing config")}
@@ -80,17 +93,18 @@ func (m BackupListModel) runBackup(password string) tea.Cmd {
 	}
 }
 
-func (m BackupListModel) deleteBackup(name string) tea.Cmd {
+func (m *BackupListModel) deleteBackup(name string) tea.Cmd {
+	m.loading = true
 	return func() tea.Msg {
 		if m.ctx.Config == nil {
-			return backupDeleteErrorMsg{err: fmt.Errorf("missing config")}
+			return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("missing config")}
 		}
 		dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
 		encPath := filepath.Join(dir, name+".tar.gz.enc")
 		metaPath := encPath + ".meta.json"
 
 		if err := os.Remove(encPath); err != nil {
-			return backupDeleteErrorMsg{err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
+			return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
 		}
 		os.Remove(metaPath)
 		return backupDeletedMsg{name: name}
@@ -115,12 +129,21 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.passwordInput.Width = pw
 
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+
 	case backupsLoadedMsg:
+		m.loading = false
 		m.list.SetItems([]list.Item(msg))
 		return m, nil
 
 	case BackupSuccessMsg:
 		m.creatingBackup = false
+		m.loading = false
 		m.backupStatus = fmt.Sprintf("✓ Backup created: %s (%d files)", msg.Result.BackupName, msg.Result.FileCount)
 		m.backupError = ""
 		m.passwordInput.SetValue("")
@@ -131,6 +154,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case BackupErrorMsg:
 		m.creatingBackup = false
+		m.loading = false
 		m.backupStatus = ""
 		m.backupError = fmt.Sprintf("✗ Backup failed: %v", msg.Error)
 		m.passwordInput.SetValue("")
@@ -141,6 +165,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case backupDeletedMsg:
 		m.confirmingDelete = false
+		m.loading = false
 		m.backupStatus = fmt.Sprintf("✓ Deleted: %s", msg.name)
 		m.backupError = ""
 		m.deleteTarget = ""
@@ -148,8 +173,9 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case backupDeleteErrorMsg:
 		m.confirmingDelete = false
+		m.loading = false
 		m.backupStatus = ""
-		m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.err)
+		m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.Err)
 		m.deleteTarget = ""
 		return m, nil
 
@@ -221,6 +247,14 @@ func (m BackupListModel) View() string {
 
 	st := styles.DefaultStyles()
 
+	if m.loading && !m.creatingBackup && !m.confirmingDelete {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nLoading backups...",
+		)
+	}
+
 	if m.confirmingDelete {
 		s.WriteString(st.Title.Render("Delete Backup") + "\n\n")
 		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", st.Value.Render(m.deleteTarget)))
@@ -277,4 +311,8 @@ func (m BackupListModel) StatusHelpText() string {
 
 func (m BackupListModel) IsCreating() bool {
 	return m.creatingBackup || m.confirmingDelete
+}
+
+func (m BackupListModel) IsInputActive() bool {
+	return m.IsCreating()
 }
