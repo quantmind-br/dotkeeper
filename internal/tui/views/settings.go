@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
@@ -80,6 +81,8 @@ type SettingsModel struct {
 	subEditIndex      int
 	filePicker        filepicker.Model
 	filePickerParent  settingsState
+	spinner           spinner.Model
+	loading           bool
 }
 
 // NewSettings creates a new settings model
@@ -116,6 +119,9 @@ func NewSettings(ctx *ProgramContext) SettingsModel {
 	}
 	fp.ShowHidden = true
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+
 	m := SettingsModel{
 		ctx:           ctx,
 		state:         stateListNavigating,
@@ -124,6 +130,7 @@ func NewSettings(ctx *ProgramContext) SettingsModel {
 		foldersList:   foldersList,
 		pathCompleter: pc,
 		filePicker:    fp,
+		spinner:       s,
 	}
 	m.refreshMainList()
 	m.refreshPathList(pathListFiles)
@@ -135,12 +142,22 @@ func NewSettings(ctx *ProgramContext) SettingsModel {
 
 // Init initializes the settings view
 func (m SettingsModel) Init() tea.Cmd {
-	return m.scanPathDescs()
+	return tea.Batch(m.scanPathDescs(), m.spinner.Tick)
 }
 
 // Update handles messages
 func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+	}
+
 	if descs, ok := msg.(pathDescsMsg); ok {
+		m.loading = false
 		if m.pathDescs == nil {
 			m.pathDescs = make(map[string]string)
 		}
@@ -183,6 +200,7 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.errMsg = ""
 				m.refreshMainList()
 				m.state = m.filePickerParent
+				m.loading = true
 				return m, m.scanPathDescs()
 			}
 			return m, cmd
@@ -478,6 +496,7 @@ func (m SettingsModel) handleEditingSubItemInput(msg tea.KeyMsg) (tea.Model, tea
 			m.pathCompleter.Input.Blur()
 			m.pathCompleter.Input.SetValue("")
 			m.resizeLists()
+			m.loading = true
 			return m, m.scanPathDescs()
 		}
 		m.saveFieldValue(value)
@@ -488,6 +507,7 @@ func (m SettingsModel) handleEditingSubItemInput(msg tea.KeyMsg) (tea.Model, tea
 		m.pathCompleter.Input.Blur()
 		m.pathCompleter.Input.SetValue("")
 		m.resizeLists()
+		m.loading = true
 		return m, m.scanPathDescs()
 
 	default:
@@ -709,6 +729,14 @@ func (m SettingsModel) View() string {
 	var b strings.Builder
 
 	st := styles.DefaultStyles()
+
+	if m.loading {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\nScanning paths...",
+		)
+	}
 
 	b.WriteString(st.Title.Render("Settings") + "\n\n")
 

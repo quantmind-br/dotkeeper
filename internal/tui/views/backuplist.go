@@ -76,37 +76,43 @@ func (m *BackupListModel) Refresh() tea.Cmd {
 
 func (m *BackupListModel) runBackup(password string) tea.Cmd {
 	m.loading = true
-	return func() tea.Msg {
-		if m.ctx.Config == nil {
-			return BackupErrorMsg{Source: "backup", Err: fmt.Errorf("missing config")}
-		}
-		cfg := m.ctx.Config
-		cfg.BackupDir = pathutil.ExpandHome(cfg.BackupDir)
+	return tea.Batch(
+		func() tea.Msg {
+			if m.ctx.Config == nil {
+				return BackupErrorMsg{Source: "backup", Err: fmt.Errorf("missing config")}
+			}
+			cfg := m.ctx.Config
+			cfg.BackupDir = pathutil.ExpandHome(cfg.BackupDir)
 
-		result, err := backup.Backup(cfg, password)
-		if err != nil {
-			return BackupErrorMsg{Source: "backup", Err: err}
-		}
-		return BackupSuccessMsg{Result: result}
-	}
+			result, err := backup.Backup(cfg, password)
+			if err != nil {
+				return BackupErrorMsg{Source: "backup", Err: err}
+			}
+			return BackupSuccessMsg{Result: result}
+		},
+		m.spinner.Tick,
+	)
 }
 
 func (m *BackupListModel) deleteBackup(name string) tea.Cmd {
 	m.loading = true
-	return func() tea.Msg {
-		if m.ctx.Config == nil {
-			return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("missing config")}
-		}
-		dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
-		encPath := filepath.Join(dir, name+".tar.gz.enc")
-		metaPath := encPath + ".meta.json"
+	return tea.Batch(
+		func() tea.Msg {
+			if m.ctx.Config == nil {
+				return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("missing config")}
+			}
+			dir := pathutil.ExpandHome(m.ctx.Config.BackupDir)
+			encPath := filepath.Join(dir, name+".tar.gz.enc")
+			metaPath := encPath + ".meta.json"
 
-		if err := os.Remove(encPath); err != nil {
-			return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
-		}
-		os.Remove(metaPath)
-		return backupDeletedMsg{name: name}
-	}
+			if err := os.Remove(encPath); err != nil {
+				return backupDeleteErrorMsg{Source: "backup-delete", Err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
+			}
+			os.Remove(metaPath)
+			return backupDeletedMsg{name: name}
+		},
+		m.spinner.Tick,
+	)
 }
 
 func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -128,11 +134,9 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.passwordInput.Width = pw
 
 	case spinner.TickMsg:
-		if m.loading {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 
 	case backupsLoadedMsg:
 		m.loading = false
@@ -165,23 +169,22 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.confirmingDelete = false
 			m.loading = false
 			m.backupStatus = ""
-			m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.Err)
+			m.backupError = ""
 			m.deleteTarget = ""
-			return m, nil
+			return m, tea.Batch(m.Refresh(), m.spinner.Tick)
 		}
 
 	case backupDeletedMsg:
-		m.confirmingDelete = false
 		m.loading = false
+		m.confirmingDelete = false
 		m.backupStatus = fmt.Sprintf("✓ Deleted: %s", msg.name)
-		m.backupError = ""
-		m.deleteTarget = ""
 		return m, m.Refresh()
 
 	case tea.KeyMsg:
 		if m.confirmingDelete {
 			switch msg.String() {
 			case "y", "Y":
+				m.loading = true
 				return m, m.deleteBackup(m.deleteTarget)
 			default:
 				m.confirmingDelete = false
@@ -197,7 +200,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if password != "" {
 					m.backupStatus = "Creating backup..."
 					m.backupError = ""
-					return m, m.runBackup(password)
+					return m, tea.Batch(m.runBackup(password), m.spinner.Tick)
 				}
 			case "esc":
 				m.creatingBackup = false
@@ -228,7 +231,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "r":
-			return m, m.Refresh()
+			return m, tea.Batch(m.Refresh(), m.spinner.Tick)
 		}
 	}
 

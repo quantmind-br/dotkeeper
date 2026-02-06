@@ -147,9 +147,17 @@ func TestBackupListModel_Delete(t *testing.T) {
 		t.Fatal("Expected a command after confirming delete")
 	}
 
-	deleteMsg := cmd()
-	updated, _ = model.Update(deleteMsg)
-	model = updated.(BackupListModel)
+	// Execute batch commands: deleteBackup() returns tea.Batch(deleteFn, spinner.Tick)
+	// We need to execute all commands in the batch until confirmingDelete is false
+	for model.confirmingDelete && cmd != nil {
+		msg := executeBatchCmd(t, cmd)
+		if msg == nil {
+			break
+		}
+		updated, nextCmd := model.Update(msg)
+		model = updated.(BackupListModel)
+		cmd = nextCmd
+	}
 
 	if model.confirmingDelete {
 		t.Fatal("Expected confirmingDelete to be false after delete")

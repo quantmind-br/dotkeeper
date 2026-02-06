@@ -74,9 +74,18 @@ func TestRestoreBackupListLoad(t *testing.T) {
 		t.Fatal("Init() should return a command")
 	}
 
-	msg := initCmd()
-	updatedModel, _ := model.Update(msg)
+	msg := executeBatchCmd(t, initCmd)
+	updatedModel, cmd := model.Update(msg)
 	model = updatedModel.(RestoreModel)
+
+	for model.loading && cmd != nil {
+		msg = executeBatchCmd(t, cmd)
+		if msg == nil {
+			break
+		}
+		updatedModel, cmd = model.Update(msg)
+		model = updatedModel.(RestoreModel)
+	}
 
 	updatedModel, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model = updatedModel.(RestoreModel)

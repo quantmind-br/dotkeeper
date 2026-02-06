@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/restore"
@@ -46,6 +48,8 @@ type RestoreModel struct {
 	currentDiff      string
 	diffFile         string                 // path of file being diffed
 	restoreResult    *restore.RestoreResult // result of restore operation
+	spinner          spinner.Model
+	loading          bool
 }
 
 type passwordValidMsg struct{}
@@ -106,6 +110,9 @@ func NewRestore(ctx *ProgramContext) RestoreModel {
 
 	vp := viewport.New(0, 0)
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+
 	return RestoreModel{
 		ctx:           ensureProgramContext(ctx),
 		backupList:    l,
@@ -114,12 +121,13 @@ func NewRestore(ctx *ProgramContext) RestoreModel {
 		selectedFiles: make(map[string]bool),
 		viewport:      vp,
 		phase:         phaseBackupList,
+		spinner:       s,
 	}
 }
 
 // Init initializes the restore view
 func (m RestoreModel) Init() tea.Cmd {
-	return m.refreshBackups()
+	return tea.Batch(m.refreshBackups(), m.spinner.Tick)
 }
 
 // Refresh reloads the backup list
@@ -242,6 +250,7 @@ func (m RestoreModel) handleBackupListKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd
 			return m, textinput.Blink
 		}
 	case "r":
+		m.loading = true
 		return m, m.refreshBackups()
 	default:
 		var cmd tea.Cmd
@@ -255,6 +264,7 @@ func (m RestoreModel) handlePasswordKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) 
 	switch msg.String() {
 	case "enter":
 		if m.passwordInput.Value() != "" {
+			m.loading = true
 			m.restoreStatus = "Validating password..."
 			m.restoreError = ""
 			return m, m.validatePassword(m.selectedBackup, m.passwordInput.Value())
@@ -264,6 +274,7 @@ func (m RestoreModel) handlePasswordKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd) 
 		m.passwordInput.SetValue("")
 		m.passwordAttempts = 0
 		m.restoreError = ""
+		m.loading = false
 		m.passwordInput.Blur()
 		return m, nil
 	default:
@@ -295,6 +306,7 @@ func (m RestoreModel) handleFileSelectKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd
 	case "d":
 		if item := m.fileList.SelectedItem(); item != nil {
 			fi := item.(fileItem)
+			m.loading = true
 			m.restoreStatus = "Loading diff..."
 			m.restoreError = ""
 			return m, m.loadDiff(fi.path)
@@ -304,6 +316,7 @@ func (m RestoreModel) handleFileSelectKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd
 		if selectedCount == 0 {
 			m.restoreError = "Select at least one file"
 		} else {
+			m.loading = true
 			m.phase = phaseRestoring
 			m.restoreStatus = fmt.Sprintf("Restoring %d files...", selectedCount)
 			m.restoreError = ""
@@ -314,7 +327,7 @@ func (m RestoreModel) handleFileSelectKey(msg tea.KeyMsg) (RestoreModel, tea.Cmd
 		m.selectedFiles = make(map[string]bool)
 		m.password = ""
 		m.restoreError = ""
-		m.restoreStatus = ""
+		m.loading = false
 		m.passwordInput.SetValue("")
 		m.passwordInput.Blur()
 	default:
@@ -358,6 +371,7 @@ func (m RestoreModel) handleResultsKey() (RestoreModel, tea.Cmd) {
 	m.restoreStatus = ""
 	m.passwordInput.SetValue("")
 	m.passwordInput.Blur()
+	m.loading = true
 	return m, m.refreshBackups()
 }
 
@@ -366,6 +380,12 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		if m.loading {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
 	case tea.WindowSizeMsg:
 		m.ctx.Width = msg.Width
 		m.ctx.Height = msg.Height
@@ -393,6 +413,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.passwordInput.Width = pw
 
 	case backupsLoadedMsg:
+		m.loading = false
 		m.backupList.SetItems([]list.Item(msg))
 		return m, nil
 
@@ -406,6 +427,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case passwordInvalidMsg:
 		if msg.Source == "restore-password" {
+			m.loading = false
 			m.passwordAttempts++
 			if m.passwordAttempts >= 3 {
 				m.restoreError = "Too many failed attempts"
@@ -420,10 +442,12 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.restoreStatus = ""
 			return m, nil
 		} else if msg.Source == "restore-diff" {
+			m.loading = false
 			m.restoreError = fmt.Sprintf("Failed to load diff: %v", msg.Err)
 			m.restoreStatus = ""
 			return m, nil
 		} else if msg.Source == "restore" {
+			m.loading = false
 			m.restoreError = fmt.Sprintf("Restore failed: %v", msg.Err)
 			m.restoreResult = nil
 			m.phase = phaseResults
@@ -435,6 +459,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case filesLoadedMsg:
+		m.loading = false
 		items := make([]list.Item, len(msg.files))
 		m.selectedFiles = make(map[string]bool)
 		for i, entry := range msg.files {
@@ -451,6 +476,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case diffLoadedMsg:
+		m.loading = false
 		m.currentDiff = msg.diff
 		m.diffFile = msg.file
 		m.viewport.SetContent(msg.diff)
@@ -461,6 +487,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case restoreCompleteMsg:
+		m.loading = false
 		m.restoreResult = msg.result
 		m.phase = phaseResults
 		m.restoreStatus = ""
@@ -502,6 +529,13 @@ func (m RestoreModel) View() string {
 
 	// Phase 0: Backup list selection
 	if m.phase == phaseBackupList {
+		if m.loading {
+			return lipgloss.JoinVertical(lipgloss.Center,
+				"\n",
+				m.spinner.View(),
+				"\nLoading backups...",
+			)
+		}
 		s.WriteString(m.backupList.View())
 		s.WriteString("\n")
 		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
@@ -510,6 +544,13 @@ func (m RestoreModel) View() string {
 
 	// Phase 1: Password entry
 	if m.phase == phasePassword {
+		if m.loading {
+			return lipgloss.JoinVertical(lipgloss.Center,
+				"\n",
+				m.spinner.View(),
+				"\nValidating password...",
+			)
+		}
 		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
@@ -519,6 +560,13 @@ func (m RestoreModel) View() string {
 
 	// Phase 2: File selection
 	if m.phase == phaseFileSelect {
+		if m.loading {
+			return lipgloss.JoinVertical(lipgloss.Center,
+				"\n",
+				m.spinner.View(),
+				"\n"+m.restoreStatus+"...",
+			)
+		}
 		s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
 
 		selectedCount := m.countSelectedFiles()
@@ -533,13 +581,22 @@ func (m RestoreModel) View() string {
 
 	// Phase 3: Restoring
 	if m.phase == phaseRestoring {
-		s.WriteString(st.Title.Render("Restoring...") + "\n\n")
-		s.WriteString(RenderStatusBar(m.ctx.Width, m.restoreStatus, m.restoreError, ""))
-		return s.String()
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"\n",
+			m.spinner.View(),
+			"\n"+m.restoreStatus+"...",
+		)
 	}
 
 	// Phase 4: Diff preview
 	if m.phase == phaseDiffPreview {
+		if m.loading {
+			return lipgloss.JoinVertical(lipgloss.Center,
+				"\n",
+				m.spinner.View(),
+				"\nLoading diff...",
+			)
+		}
 		s.WriteString(st.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
