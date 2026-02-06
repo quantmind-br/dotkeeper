@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
 )
 
@@ -50,5 +51,43 @@ func TestDashboard(t *testing.T) {
 	}
 	if !strings.Contains(viewNarrow, "Files Tracked") {
 		t.Error("Narrow View() missing 'Files Tracked'")
+	}
+}
+
+func TestDashboardArrowSelectionAndEnter(t *testing.T) {
+	cfg := &config.Config{BackupDir: "/tmp/backup"}
+	m := NewDashboard(cfg)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m = updated.(DashboardModel)
+	if m.selected != 1 {
+		t.Fatalf("selected after right: got %d, want %d", m.selected, 1)
+	}
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m = updated.(DashboardModel)
+	if m.selected != 0 {
+		t.Fatalf("selected after left: got %d, want %d", m.selected, 0)
+	}
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m = updated.(DashboardModel)
+	if m.selected != 2 {
+		t.Fatalf("selected after up wrap: got %d, want %d", m.selected, 2)
+	}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(DashboardModel)
+	if cmd == nil {
+		t.Fatal("enter should return a command")
+	}
+
+	msg := cmd()
+	nav, ok := msg.(DashboardNavigateMsg)
+	if !ok {
+		t.Fatalf("enter command returned %T, want DashboardNavigateMsg", msg)
+	}
+	if nav.Target != "settings" {
+		t.Fatalf("enter target: got %q, want %q", nav.Target, "settings")
 	}
 }

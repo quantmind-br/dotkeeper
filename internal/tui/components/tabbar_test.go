@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/diogo/dotkeeper/internal/tui/views"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 func stripANSI(s string) string {
@@ -14,7 +14,7 @@ func stripANSI(s string) string {
 }
 
 func TestTabBarActiveHighlight(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 	outputs := make([]string, 5)
 	plainOutputs := make([]string, 5)
 
@@ -61,7 +61,7 @@ func TestTabBarActiveHighlight(t *testing.T) {
 }
 
 func TestTabBarResponsive(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 
 	// Wide terminal (>= 80): full labels
 	wide := tb.View(0, 100)
@@ -93,7 +93,7 @@ func TestTabBarResponsive(t *testing.T) {
 }
 
 func TestTabBarSeparators(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 	output := tb.View(0, 100)
 
 	// Should have 4 separators (between 5 tabs)
@@ -104,7 +104,7 @@ func TestTabBarSeparators(t *testing.T) {
 }
 
 func TestTabBarNumberLabels(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 	output := tb.View(0, 100)
 
 	for _, num := range []string{"1", "2", "3", "4", "5"} {
@@ -115,7 +115,7 @@ func TestTabBarNumberLabels(t *testing.T) {
 }
 
 func TestTabBarAllTabs(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 	output := tb.View(0, 100)
 
 	tabs := []string{"Dashboard", "Backups", "Restore", "Settings", "Logs"}
@@ -127,7 +127,7 @@ func TestTabBarAllTabs(t *testing.T) {
 }
 
 func TestTabBarOutOfBoundsIndex(t *testing.T) {
-	tb := NewTabBar(views.DefaultStyles())
+	tb := NewTabBar(styles.DefaultStyles())
 
 	// Should not panic with out-of-bounds index
 	_ = tb.View(-1, 100) // negative

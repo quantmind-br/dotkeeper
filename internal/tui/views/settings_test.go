@@ -158,6 +158,28 @@ func TestSettingsFilePickerState(t *testing.T) {
 	}
 }
 
+func TestSettingsToggleDisable(t *testing.T) {
+	cfg := testSettingsConfig()
+	model := NewSettings(cfg)
+	model.state = stateBrowsingFiles
+
+	if len(model.filesList.Items()) == 0 {
+		t.Fatal("filesList is empty")
+	}
+
+	// Space toggles disable
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	if len(model.config.DisabledFiles) != 1 {
+		t.Fatalf("expected 1 disabled file, got %d", len(model.config.DisabledFiles))
+	}
+
+	// Space again toggles enable
+	model = sendKey(t, model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	if len(model.config.DisabledFiles) != 0 {
+		t.Fatalf("expected 0 disabled files after re-toggle, got %d", len(model.config.DisabledFiles))
+	}
+}
+
 func TestSettingsInspect(t *testing.T) {
 	cfg := testSettingsConfig()
 	model := NewSettings(cfg)

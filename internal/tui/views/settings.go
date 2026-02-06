@@ -335,6 +335,35 @@ func (m SettingsModel) handleBrowsingFoldersInput(msg tea.KeyMsg) (tea.Model, te
 	case "esc":
 		m.state = stateListNavigating
 		return m, nil
+	case " ":
+		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd {
+			return m, nil
+		}
+		path := m.config.Folders[selected.index]
+		// Toggle in DisabledFolders
+		found := false
+		for i, d := range m.config.DisabledFolders {
+			if d == path {
+				m.config.DisabledFolders = append(m.config.DisabledFolders[:i], m.config.DisabledFolders[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			m.config.DisabledFolders = append(m.config.DisabledFolders, path)
+		}
+		m.refreshFoldersList()
+		return m, nil
+	case "i":
+		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
+		if !ok || selected.isAdd {
+			return m, nil
+		}
+		path := m.config.Folders[selected.index]
+		m.inspecting = true
+		m.inspectInfo = getInspectInfo(path)
+		return m, nil
 	case "enter":
 		selected, ok := m.foldersList.SelectedItem().(subSettingItem)
 		if !ok {
@@ -712,6 +741,12 @@ func (m SettingsModel) View() string {
 		helpText = "Enter: Select | ↑/↓: Navigate | Esc: Cancel"
 	}
 
+	if m.inspecting && m.inspectInfo != "" {
+		b.WriteString("\n")
+		b.WriteString(styles.Card.Render(m.inspectInfo))
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n" + RenderStatusBar(m.width, m.status, m.errMsg, helpText))
 
 	return b.String()
@@ -724,15 +759,25 @@ func (m SettingsModel) HelpBindings() []HelpEntry {
 			{"Enter", "Save field"},
 			{"Esc", "Cancel edit"},
 		}
-	case stateListNavigating, stateBrowsingFiles, stateBrowsingFolders:
+	case stateListNavigating:
 		return []HelpEntry{
 			{"↑/↓", "Navigate"},
-			{"Enter", "Edit field"},
+			{"Enter", "Edit"},
+			{"a", "Add (on lists)"},
+			{"s", "Save"},
+			{"Esc", "Back"},
+		}
+	case stateBrowsingFiles, stateBrowsingFolders:
+		return []HelpEntry{
+			{"↑/↓", "Navigate"},
+			{"Space", "Toggle"},
+			{"i", "Inspect"},
+			{"Enter", "Edit"},
 			{"a", "Type path"},
 			{"b", "Browse"},
-			{"d", "Delete item"},
-			{"s", "Save config"},
-			{"Esc", "Exit edit"},
+			{"d", "Delete"},
+			{"s", "Save"},
+			{"Esc", "Back"},
 		}
 	case stateFilePickerActive:
 		return []HelpEntry{
