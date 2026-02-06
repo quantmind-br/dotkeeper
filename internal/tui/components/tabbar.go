@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/diogo/dotkeeper/internal/tui/views"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // TabItem represents a single tab
@@ -17,11 +17,11 @@ type TabItem struct {
 // TabBar is a stateless tab bar renderer
 type TabBar struct {
 	items  []TabItem
-	styles views.Styles
+	styles styles.Styles
 }
 
 // NewTabBar creates a new TabBar with 5 hardcoded tabs
-func NewTabBar(styles views.Styles) TabBar {
+func NewTabBar(s styles.Styles) TabBar {
 	return TabBar{
 		items: []TabItem{
 			{Key: "1", Label: "Dashboard", ShortLabel: "Dash"},
@@ -30,7 +30,7 @@ func NewTabBar(styles views.Styles) TabBar {
 			{Key: "4", Label: "Settings", ShortLabel: "Sett"},
 			{Key: "5", Label: "Logs", ShortLabel: "Logs"},
 		},
-		styles: styles,
+		styles: s,
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // Keep lipgloss import for cursor/prompt styles (component configuration)
@@ -78,21 +79,21 @@ func NewSettings(cfg *config.Config) SettingsModel {
 	pc.Input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 	pc.Input.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
-	mainList := list.New([]list.Item{}, NewListDelegate(), 80, 18)
+	mainList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
 	mainList.SetShowTitle(false)
 	mainList.SetShowHelp(false)
 	mainList.SetShowStatusBar(false)
 	mainList.SetShowPagination(false)
 	mainList.SetFilteringEnabled(false)
 
-	filesList := list.New([]list.Item{}, NewListDelegate(), 80, 18)
+	filesList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
 	filesList.SetShowTitle(false)
 	filesList.SetShowHelp(false)
 	filesList.SetShowStatusBar(false)
 	filesList.SetShowPagination(false)
 	filesList.SetFilteringEnabled(false)
 
-	foldersList := list.New([]list.Item{}, NewListDelegate(), 80, 18)
+	foldersList := list.New([]list.Item{}, styles.NewListDelegate(), 80, 18)
 	foldersList.SetShowTitle(false)
 	foldersList.SetShowHelp(false)
 	foldersList.SetShowStatusBar(false)
@@ -613,7 +614,7 @@ func (m *SettingsModel) resizeLists() {
 		width = 80
 	}
 
-	height := m.height - ViewChromeHeight
+	height := m.height - styles.ViewChromeHeight
 	if m.state == stateEditingField || m.state == stateEditingSubItem {
 		height -= 2
 	}
@@ -634,7 +635,7 @@ func (m *SettingsModel) resizeLists() {
 func (m SettingsModel) View() string {
 	var b strings.Builder
 
-	styles := DefaultStyles()
+	styles := styles.DefaultStyles()
 
 	b.WriteString(styles.Title.Render("Settings") + "\n\n")
 

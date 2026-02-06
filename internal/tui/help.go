@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -18,25 +19,25 @@ func globalHelp() []views.HelpEntry {
 }
 
 func renderHelpOverlay(global []views.HelpEntry, viewHelp []views.HelpEntry, width, height int) string {
-	styles := views.DefaultStyles()
+	s := styles.DefaultStyles()
 
 	var content strings.Builder
 
-	content.WriteString(styles.HelpTitle.Render("Keyboard Shortcuts"))
+	content.WriteString(s.HelpTitle.Render("Keyboard Shortcuts"))
 	content.WriteString("\n\n")
 
-	content.WriteString(styles.HelpSection.Render("Global"))
+	content.WriteString(s.HelpSection.Render("Global"))
 	content.WriteString("\n")
 	for _, entry := range global {
-		content.WriteString(fmt.Sprintf("  %s  %s\n", styles.HelpKey.Render(entry.Key), entry.Description))
+		content.WriteString(fmt.Sprintf("  %s  %s\n", s.HelpKey.Render(entry.Key), entry.Description))
 	}
 
 	if len(viewHelp) > 0 {
 		content.WriteString("\n")
-		content.WriteString(styles.HelpSection.Render("Current View"))
+		content.WriteString(s.HelpSection.Render("Current View"))
 		content.WriteString("\n")
 		for _, entry := range viewHelp {
-			content.WriteString(fmt.Sprintf("  %s  %s\n", styles.HelpKey.Render(entry.Key), entry.Description))
+			content.WriteString(fmt.Sprintf("  %s  %s\n", s.HelpKey.Render(entry.Key), entry.Description))
 		}
 	}
 
@@ -53,7 +54,7 @@ func renderHelpOverlay(global []views.HelpEntry, viewHelp []views.HelpEntry, wid
 		overlayH = 20
 	}
 
-	overlayStyle := styles.HelpOverlay.
+	overlayStyle := s.HelpOverlay.
 		Width(overlayW).
 		Height(overlayH)
 

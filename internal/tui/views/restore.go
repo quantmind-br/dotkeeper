@@ -15,6 +15,7 @@ import (
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/restore"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // RestoreModel represents the restore view
@@ -91,7 +92,7 @@ func (i fileItem) FilterValue() string {
 
 // NewRestore creates a new restore model
 func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
-	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
+	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
 	l.Title = "Backups"
 	l.SetShowTitle(false)
 	l.SetShowHelp(false)
@@ -104,7 +105,7 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	ti.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
 
-	fl := list.New([]list.Item{}, NewListDelegate(), 0, 0)
+	fl := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
 	fl.Title = "Files"
 	fl.SetShowTitle(false)
 	fl.SetShowHelp(false)
@@ -253,10 +254,10 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.backupList.SetSize(msg.Width, msg.Height-ViewChromeHeight)
-		m.fileList.SetSize(msg.Width, msg.Height-ViewChromeHeight)
+		m.backupList.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
+		m.fileList.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - ViewChromeHeight
+		m.viewport.Height = msg.Height - styles.ViewChromeHeight
 
 	case backupsLoadedMsg:
 		m.backupList.SetItems([]list.Item(msg))
@@ -466,7 +467,7 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m RestoreModel) View() string {
 	var s strings.Builder
 
-	styles := DefaultStyles()
+	st := styles.DefaultStyles()
 
 	// Phase 0: Backup list selection
 	if m.phase == 0 {
@@ -478,7 +479,7 @@ func (m RestoreModel) View() string {
 
 	// Phase 1: Password entry
 	if m.phase == 1 {
-		s.WriteString(styles.Title.Render("Enter Password") + "\n\n")
+		s.WriteString(st.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
 		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Enter: validate | Esc: back"))
@@ -487,11 +488,11 @@ func (m RestoreModel) View() string {
 
 	// Phase 2: File selection
 	if m.phase == 2 {
-		s.WriteString(styles.Title.Render("Select Files to Restore") + "\n\n")
+		s.WriteString(st.Title.Render("Select Files to Restore") + "\n\n")
 
 		selectedCount := m.countSelectedFiles()
 		totalCount := len(m.selectedFiles)
-		s.WriteString(styles.Value.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
+		s.WriteString(st.Value.Render(fmt.Sprintf("%d of %d files selected", selectedCount, totalCount)) + "\n\n")
 
 		s.WriteString(m.fileList.View())
 		s.WriteString("\n")
@@ -501,19 +502,19 @@ func (m RestoreModel) View() string {
 
 	// Phase 3: Restoring
 	if m.phase == 3 {
-		s.WriteString(styles.Title.Render("Restoring...") + "\n\n")
+		s.WriteString(st.Title.Render("Restoring...") + "\n\n")
 		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Please wait..."))
 		return s.String()
 	}
 
 	// Phase 4: Diff preview
 	if m.phase == 4 {
-		s.WriteString(styles.Title.Render("Diff Preview") + "\n")
+		s.WriteString(st.Title.Render("Diff Preview") + "\n")
 		s.WriteString(fmt.Sprintf("File: %s\n\n", m.diffFile))
 
-		viewportStyle := styles.ViewportBorder.Copy().
+		viewportStyle := st.ViewportBorder.Copy().
 			Width(m.width - 4).
-			Height(m.height - ViewChromeHeight - 4)
+			Height(m.height - styles.ViewChromeHeight - 4)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
 		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, "j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
@@ -522,12 +523,12 @@ func (m RestoreModel) View() string {
 
 	// Phase 5: Results
 	if m.phase == 5 {
-		s.WriteString(styles.Title.Render("Restore Complete") + "\n\n")
+		s.WriteString(st.Title.Render("Restore Complete") + "\n\n")
 
 		if m.restoreError != "" {
-			s.WriteString(styles.Error.Render(m.restoreError) + "\n\n")
+			s.WriteString(st.Error.Render(m.restoreError) + "\n\n")
 		} else if m.restoreResult != nil {
-			s.WriteString(styles.Success.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
+			s.WriteString(st.Success.Render(fmt.Sprintf("✓ Restored %d files", m.restoreResult.FilesRestored)) + "\n")
 
 			if len(m.restoreResult.BackupFiles) > 0 {
 				s.WriteString(fmt.Sprintf("  %d .bak files created\n", len(m.restoreResult.BackupFiles)))
@@ -559,7 +560,7 @@ func (m RestoreModel) View() string {
 		return s.String()
 	}
 
-	s.WriteString(styles.Title.Render("Restore") + "\n\n")
+	s.WriteString(st.Title.Render("Restore") + "\n\n")
 	s.WriteString("Phase " + fmt.Sprintf("%d", m.phase) + " (implementation pending)")
 
 	return s.String()

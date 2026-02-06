@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/pathutil"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 type PathValidationResult struct {
@@ -113,17 +114,17 @@ type DashboardNavigateMsg struct {
 }
 
 func RenderStatusBar(width int, status string, errMsg string, helpText string) string {
-	styles := DefaultStyles()
+	st := styles.DefaultStyles()
 	var s strings.Builder
 
 	msg := ""
-	style := styles.Success
+	style := st.Success
 	if errMsg != "" {
 		msg = errMsg
-		style = styles.Error
+		style = st.Error
 	} else if status != "" {
 		msg = status
-		style = styles.Success
+		style = st.Success
 	}
 
 	if msg != "" {
@@ -133,8 +134,8 @@ func RenderStatusBar(width int, status string, errMsg string, helpText string) s
 		s.WriteString(style.Render(msg) + "\n")
 	}
 
-	s.WriteString(styles.Help.Render(helpText))
-	return styles.StatusBar.Render(s.String())
+	s.WriteString(st.Help.Render(helpText))
+	return st.StatusBar.Render(s.String())
 }
 
 func PlaceOverlay(width, height int, content string) string {

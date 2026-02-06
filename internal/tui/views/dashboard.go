@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // DashboardModel represents the dashboard view
@@ -82,7 +83,7 @@ func (m DashboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the dashboard
 func (m DashboardModel) View() string {
-	styles := DefaultStyles()
+	st := styles.DefaultStyles()
 
 	var lastBackupVal string
 	if !m.lastBackup.IsZero() {
@@ -91,27 +92,27 @@ func (m DashboardModel) View() string {
 		lastBackupVal = "Never"
 	}
 
-	card1 := styles.Card.Render(
-		styles.CardTitle.Render(lastBackupVal) + "\n" +
-			styles.CardLabel.Render("Last Backup"),
+	card1 := st.Card.Render(
+		st.CardTitle.Render(lastBackupVal) + "\n" +
+			st.CardLabel.Render("Last Backup"),
 	)
 
-	card2 := styles.Card.Render(
-		styles.CardTitle.Render(fmt.Sprintf("%d", m.fileCount)) + "\n" +
-			styles.CardLabel.Render("Files Tracked"),
+	card2 := st.Card.Render(
+		st.CardTitle.Render(fmt.Sprintf("%d", m.fileCount)) + "\n" +
+			st.CardLabel.Render("Files Tracked"),
 	)
 
-	card3 := styles.Card.Render(
-		styles.CardTitle.Render(pathutil.FormatSize(m.totalSize)) + "\n" +
-			styles.CardLabel.Render("Total Size"),
+	card3 := st.Card.Render(
+		st.CardTitle.Render(pathutil.FormatSize(m.totalSize)) + "\n" +
+			st.CardLabel.Render("Total Size"),
 	)
 
 	cards := []string{card1, card2, card3}
 
 	if m.brokenPaths > 0 {
-		warningCard := styles.Card.Render(
-			styles.Error.Render(fmt.Sprintf("⚠ %d", m.brokenPaths)) + "\n" +
-				styles.CardLabel.Render("Broken Paths"),
+		warningCard := st.Card.Render(
+			st.Error.Render(fmt.Sprintf("⚠ %d", m.brokenPaths)) + "\n" +
+				st.CardLabel.Render("Broken Paths"),
 		)
 		cards = append(cards, warningCard)
 	}
@@ -134,11 +135,11 @@ func (m DashboardModel) View() string {
 	for i, action := range dashboardActions {
 		icon := buttonIcons[action.key]
 		label := icon + "  " + action.label
-		shortcut := styles.Help.Render("[" + action.key + "]")
+		shortcut := st.Help.Render("[" + action.key + "]")
 
-		btnStyle := styles.ButtonNormal
+		btnStyle := st.ButtonNormal
 		if i == m.selected {
-			btnStyle = styles.ButtonSelected
+			btnStyle = st.ButtonSelected
 		}
 		btnContent := btnStyle.Render(label)
 		actionButtons = append(actionButtons, lipgloss.JoinVertical(lipgloss.Center, btnContent, shortcut))

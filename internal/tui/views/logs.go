@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // LogsModel represents the logs view
@@ -71,7 +72,7 @@ func NewLogs(cfg *config.Config, stores ...*history.Store) LogsModel {
 		store = stores[0]
 	}
 
-	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
+	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
 	l.SetShowTitle(false) // We render our own title
 	l.SetShowHelp(false)
 
@@ -121,7 +122,7 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		// Adjust list size. Reserve space for chrome
-		m.list.SetSize(msg.Width, msg.Height-ViewChromeHeight)
+		m.list.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
 
 	case logsLoadedMsg:
 		items := make([]list.Item, len(msg))
@@ -168,7 +169,7 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the logs view
 func (m LogsModel) View() string {
 	var s strings.Builder
-	styles := DefaultStyles()
+	st := styles.DefaultStyles()
 
 	// Title
 	title := "Operation History"
@@ -180,7 +181,7 @@ func (m LogsModel) View() string {
 	case "restore":
 		title += " [restore]"
 	}
-	s.WriteString(styles.Title.Render(title) + "\n\n")
+	s.WriteString(st.Title.Render(title) + "\n\n")
 
 	// Content
 	if m.err != "" {

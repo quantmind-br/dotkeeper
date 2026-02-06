@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/diogo/dotkeeper/internal/tui/components"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 	"github.com/diogo/dotkeeper/internal/tui/views"
 )
 
@@ -45,34 +46,34 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	styles := views.DefaultStyles()
+	s := styles.DefaultStyles()
 
-	b.WriteString(styles.AppTitle.Render("dotkeeper - Dotfiles Backup Manager"))
+	b.WriteString(s.AppTitle.Render("dotkeeper - Dotfiles Backup Manager"))
 	b.WriteString("\n")
 
-	tabBar := components.NewTabBar(styles)
+	tabBar := components.NewTabBar(s)
 	b.WriteString(tabBar.View(m.activeTabIndex(), m.width))
 	b.WriteString("\n\n")
 
 	switch m.state {
 	case DashboardView:
-		b.WriteString(styles.ContentArea.Render(m.dashboard.View()))
+		b.WriteString(s.ContentArea.Render(m.dashboard.View()))
 	case BackupListView:
-		b.WriteString(styles.ContentArea.Render(m.backupList.View()))
+		b.WriteString(s.ContentArea.Render(m.backupList.View()))
 	case RestoreView:
-		b.WriteString(styles.ContentArea.Render(m.restore.View()))
+		b.WriteString(s.ContentArea.Render(m.restore.View()))
 	case SettingsView:
-		b.WriteString(styles.ContentArea.Render(m.settings.View()))
+		b.WriteString(s.ContentArea.Render(m.settings.View()))
 	case LogsView:
-		b.WriteString(styles.ContentArea.Render(m.logs.View()))
+		b.WriteString(s.ContentArea.Render(m.logs.View()))
 	default:
 		// Fallback to dashboard for unreachable states
-		b.WriteString(styles.ContentArea.Render(m.dashboard.View()))
+		b.WriteString(s.ContentArea.Render(m.dashboard.View()))
 	}
 
 	b.WriteString("\n\n")
 
-	b.WriteString(styles.GlobalHelp.Render("Tab/1-5: switch views | q: quit | ?: help"))
+	b.WriteString(s.GlobalHelp.Render("Tab/1-5: switch views | q: quit | ?: help"))
 	b.WriteString("\n")
 
 	return b.String()

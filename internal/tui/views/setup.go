@@ -11,6 +11,7 @@ import (
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 // SetupStep represents the current step in the setup wizard
@@ -323,7 +324,7 @@ func (m *SetupModel) resetInput() {
 func (m SetupModel) View() string {
 	var s strings.Builder
 
-	styles := DefaultStyles()
+	styles := styles.DefaultStyles()
 
 	var errMsg string
 	var statusText string

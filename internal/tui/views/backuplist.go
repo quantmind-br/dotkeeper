@@ -14,6 +14,7 @@ import (
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/history"
 	"github.com/diogo/dotkeeper/internal/pathutil"
+	"github.com/diogo/dotkeeper/internal/tui/styles"
 )
 
 type backupItem struct {
@@ -54,7 +55,7 @@ type BackupListModel struct {
 }
 
 func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
-	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
+	l := list.New([]list.Item{}, styles.NewListDelegate(), 0, 0)
 	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 
@@ -136,7 +137,7 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.list.SetSize(msg.Width, msg.Height-ViewChromeHeight)
+		m.list.SetSize(msg.Width, msg.Height-styles.ViewChromeHeight)
 
 	case backupsLoadedMsg:
 		m.list.SetItems([]list.Item(msg))
@@ -242,24 +243,24 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m BackupListModel) View() string {
 	var s strings.Builder
 
-	styles := DefaultStyles()
+	st := styles.DefaultStyles()
 
 	if m.confirmingDelete {
-		s.WriteString(styles.Title.Render("Delete Backup") + "\n\n")
-		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", styles.Value.Render(m.deleteTarget)))
+		s.WriteString(st.Title.Render("Delete Backup") + "\n\n")
+		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", st.Value.Render(m.deleteTarget)))
 		s.WriteString(RenderStatusBar(m.width, "", "", "y: confirm | any other key: cancel"))
 		return s.String()
 	}
 
 	if m.creatingBackup {
-		s.WriteString(styles.Title.Render("Create New Backup") + "\n\n")
+		s.WriteString(st.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
 		s.WriteString(m.passwordInput.View() + "\n\n")
 		s.WriteString(RenderStatusBar(m.width, m.backupStatus, m.backupError, "Press Enter to create backup, Esc to cancel"))
 		return s.String()
 	}
 
-	s.WriteString(styles.Title.Render("Backups") + "\n\n")
+	s.WriteString(st.Title.Render("Backups") + "\n\n")
 	s.WriteString(m.list.View())
 	s.WriteString("\n")
 
