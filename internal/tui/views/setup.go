@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/diogo/dotkeeper/internal/config"
 	"github.com/diogo/dotkeeper/internal/pathutil"
 	"github.com/diogo/dotkeeper/internal/tui/components"
@@ -363,6 +364,15 @@ func (m *SetupModel) resetInput() {
 
 // View renders the setup wizard
 func (m SetupModel) View() string {
+	if m.width > 0 && m.height > 0 &&
+		(m.width < styles.MinTerminalWidth || m.height < styles.MinTerminalHeight) {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+			"Terminal too small\n"+
+				fmt.Sprintf("Minimum: %dx%d", styles.MinTerminalWidth, styles.MinTerminalHeight)+"\n"+
+				fmt.Sprintf("Current: %dx%d", m.width, m.height),
+		)
+	}
+
 	var s strings.Builder
 
 	st := styles.DefaultStyles()
