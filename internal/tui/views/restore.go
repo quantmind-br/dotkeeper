@@ -90,8 +90,9 @@ func (i fileItem) FilterValue() string {
 
 // NewRestore creates a new restore model
 func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
 	l.Title = "Backups"
+	l.SetShowTitle(false)
 	l.SetShowHelp(false)
 
 	ti := textinput.New()
@@ -100,8 +101,9 @@ func NewRestore(cfg *config.Config, store *history.Store) RestoreModel {
 	ti.EchoCharacter = '•'
 	ti.Width = 40
 
-	fl := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	fl := list.New([]list.Item{}, NewListDelegate(), 0, 0)
 	fl.Title = "Files"
+	fl.SetShowTitle(false)
 	fl.SetShowHelp(false)
 
 	vp := viewport.New(0, 0)
@@ -248,10 +250,10 @@ func (m RestoreModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.backupList.SetSize(msg.Width, msg.Height-6)
-		m.fileList.SetSize(msg.Width, msg.Height-6)
+		m.backupList.SetSize(msg.Width, msg.Height-ViewChromeHeight)
+		m.fileList.SetSize(msg.Width, msg.Height-ViewChromeHeight)
 		m.viewport.Width = msg.Width
-		m.viewport.Height = msg.Height - 6
+		m.viewport.Height = msg.Height - ViewChromeHeight
 
 	case backupsLoadedMsg:
 		m.backupList.SetItems([]list.Item(msg))
@@ -467,15 +469,7 @@ func (m RestoreModel) View() string {
 	if m.phase == 0 {
 		s.WriteString(m.backupList.View())
 		s.WriteString("\n")
-
-		if m.restoreStatus != "" {
-			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
-		}
-		if m.restoreError != "" {
-			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
-		}
-
-		s.WriteString(styles.Help.Render("↑/↓: navigate | Enter: select | r: refresh"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "↑/↓: navigate | Enter: select | r: refresh"))
 		return s.String()
 	}
 
@@ -484,15 +478,7 @@ func (m RestoreModel) View() string {
 		s.WriteString(styles.Title.Render("Enter Password") + "\n\n")
 		s.WriteString(fmt.Sprintf("Backup: %s\n\n", filepath.Base(m.selectedBackup)))
 		s.WriteString(m.passwordInput.View() + "\n\n")
-
-		if m.restoreStatus != "" {
-			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
-		}
-		if m.restoreError != "" {
-			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
-		}
-
-		s.WriteString(styles.Help.Render("Enter: validate | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Enter: validate | Esc: back"))
 		return s.String()
 	}
 
@@ -506,15 +492,7 @@ func (m RestoreModel) View() string {
 
 		s.WriteString(m.fileList.View())
 		s.WriteString("\n")
-
-		if m.restoreStatus != "" {
-			s.WriteString(styles.Success.Render(m.restoreStatus) + "\n")
-		}
-		if m.restoreError != "" {
-			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
-		}
-
-		s.WriteString(styles.Help.Render("Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Space: toggle | a: all | n: none | d: diff | Enter: restore | Esc: back"))
 		return s.String()
 	}
 
@@ -532,17 +510,12 @@ func (m RestoreModel) View() string {
 
 		viewportStyle := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#666666")).
+			BorderForeground(lipgloss.Color("#7D56F4")).
 			Width(m.width - 4).
 			Height(m.height - 10)
 
 		s.WriteString(viewportStyle.Render(m.viewport.View()) + "\n")
-
-		if m.restoreError != "" {
-			s.WriteString(styles.Error.Render(m.restoreError) + "\n")
-		}
-
-		s.WriteString(styles.Help.Render("j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
+		s.WriteString(RenderStatusBar(m.width, "", m.restoreError, "j/k or ↑/↓: scroll | g/G: top/bottom | Esc: back"))
 		return s.String()
 	}
 
@@ -581,7 +554,7 @@ func (m RestoreModel) View() string {
 			}
 		}
 
-		s.WriteString(styles.Help.Render("Press any key to continue"))
+		s.WriteString(RenderStatusBar(m.width, "", "", "Press any key to continue"))
 		return s.String()
 	}
 
