@@ -1,22 +1,35 @@
 package views
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// ViewChromeHeight accounts for title, tabbar, help, and margins
+const ViewChromeHeight = 6
 
 // Styles holds common styles for the TUI
 type Styles struct {
-	Title        lipgloss.Style
-	Subtitle     lipgloss.Style
-	Normal       lipgloss.Style
-	Selected     lipgloss.Style
-	Help         lipgloss.Style
-	Error        lipgloss.Style
-	Success      lipgloss.Style
-	Label        lipgloss.Style
-	Value        lipgloss.Style
-	Hint         lipgloss.Style
-	TabActive    lipgloss.Style
-	TabInactive  lipgloss.Style
-	TabSeparator lipgloss.Style
+	Title           lipgloss.Style
+	Subtitle        lipgloss.Style
+	Normal          lipgloss.Style
+	Selected        lipgloss.Style
+	Help            lipgloss.Style
+	Error           lipgloss.Style
+	Success         lipgloss.Style
+	Label           lipgloss.Style
+	Value           lipgloss.Style
+	Hint            lipgloss.Style
+	TabActive       lipgloss.Style
+	TabInactive     lipgloss.Style
+	TabSeparator    lipgloss.Style
+	ViewContainer   lipgloss.Style
+	StatusBar       lipgloss.Style
+	Card            lipgloss.Style
+	CardTitle       lipgloss.Style
+	CardLabel       lipgloss.Style
+	ActionButton    lipgloss.Style
+	ActionButtonKey lipgloss.Style
 }
 
 // DefaultStyles returns the default styles
@@ -57,5 +70,35 @@ func DefaultStyles() Styles {
 			Foreground(lipgloss.Color("#666666")),
 		TabSeparator: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#444444")),
+		ViewContainer: lipgloss.NewStyle().MarginLeft(2),
+		StatusBar:     lipgloss.NewStyle().MarginTop(1),
+		Card: lipgloss.NewStyle().
+			Background(lipgloss.Color("#2A2A2A")).
+			Padding(1, 2).
+			MarginRight(2),
+		CardTitle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")),
+		CardLabel: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#AAAAAA")),
+		ActionButton: lipgloss.NewStyle().
+			Background(lipgloss.Color("#2A2A2A")).
+			Padding(0, 2).
+			MarginRight(1),
+		ActionButtonKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7D56F4")).
+			Bold(true),
 	}
+}
+
+// NewListDelegate returns a new list delegate with common styling
+func NewListDelegate() list.DefaultDelegate {
+	d := list.NewDefaultDelegate()
+	d.Styles.NormalTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 0, 0, 2)
+	d.Styles.NormalDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA")).Padding(0, 0, 0, 2)
+	d.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true).Padding(0, 0, 0, 2)
+	d.Styles.SelectedDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Padding(0, 0, 0, 2)
+	d.Styles.SelectedTitle = d.Styles.SelectedTitle.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(lipgloss.Color("#7D56F4"))
+	d.Styles.SelectedDesc = d.Styles.SelectedDesc.Border(lipgloss.NormalBorder(), false, false, false, true).BorderForeground(lipgloss.Color("#7D56F4"))
+	return d
 }
