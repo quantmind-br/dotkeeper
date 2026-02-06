@@ -142,7 +142,7 @@ func RenderStatusBar(width int, status string, errMsg string, helpText string) s
 	}
 
 	s.WriteString(styles.Help.Render(helpText))
-	return s.String()
+	return styles.StatusBar.Render(s.String())
 }
 
 func PlaceOverlay(width, height int, content string) string {

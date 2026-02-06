@@ -499,7 +499,7 @@ func (m RestoreModel) View() string {
 	// Phase 3: Restoring
 	if m.phase == 3 {
 		s.WriteString(styles.Title.Render("Restoring...") + "\n\n")
-		s.WriteString(m.restoreStatus)
+		s.WriteString(RenderStatusBar(m.width, m.restoreStatus, m.restoreError, "Please wait..."))
 		return s.String()
 	}
 
