@@ -275,36 +275,11 @@ func (m SettingsModel) handleBrowsingFilesInput(msg tea.KeyMsg) (tea.Model, tea.
 		}
 		m.refreshFilesList()
 		return m, nil
-	case " ":
-		selected, ok := m.filesList.SelectedItem().(subSettingItem)
-		if !ok || selected.isAdd {
-			return m, nil
-		}
-		path := m.config.Files[selected.index]
-		// Toggle in DisabledFiles
-		found := false
-		for i, d := range m.config.DisabledFiles {
-			if d == path {
-				m.config.DisabledFiles = append(m.config.DisabledFiles[:i], m.config.DisabledFiles[i+1:]...)
-				found = true
-				break
-			}
-		}
-		if !found {
-			m.config.DisabledFiles = append(m.config.DisabledFiles, path)
-		}
-		m.refreshFilesList()
-		return m, nil
 	case "i":
 		selected, ok := m.filesList.SelectedItem().(subSettingItem)
 		if !ok || selected.isAdd {
 			return m, nil
 		}
-		path := m.config.Files[selected.index]
-		m.inspecting = true
-		m.inspectInfo = getInspectInfo(path)
-		return m, nil
-	}
 		path := m.config.Files[selected.index]
 		m.inspecting = true
 		m.inspectInfo = getInspectInfo(path)
