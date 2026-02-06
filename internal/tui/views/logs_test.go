@@ -132,4 +132,7 @@ func TestLogsView(t *testing.T) {
 	if !strings.Contains(view, "No operations recorded") {
 		t.Error("expected empty state message")
 	}
+	if !strings.Contains(view, "f: filter (all)") {
+		t.Errorf("expected filter help text in view, got: %s", view)
+	}
 }

@@ -71,7 +71,7 @@ func NewLogs(cfg *config.Config, stores ...*history.Store) LogsModel {
 		store = stores[0]
 	}
 
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	l := list.New([]list.Item{}, NewListDelegate(), 0, 0)
 	l.SetShowTitle(false) // We render our own title
 	l.SetShowHelp(false)
 
@@ -120,8 +120,8 @@ func (m LogsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Adjust list size. Reserve space for title (2 lines) + help (1 line) + margins
-		m.list.SetSize(msg.Width, msg.Height-6)
+		// Adjust list size. Reserve space for chrome
+		m.list.SetSize(msg.Width, msg.Height-ViewChromeHeight)
 
 	case logsLoadedMsg:
 		items := make([]list.Item, len(msg))
@@ -184,19 +184,15 @@ func (m LogsModel) View() string {
 
 	// Content
 	if m.err != "" {
-		s.WriteString(styles.Error.Render(fmt.Sprintf("Error: %s", m.err)) + "\n")
+		s.WriteString("\n")
 	} else if len(m.list.Items()) == 0 {
 		s.WriteString("No operations recorded yet. Run a backup to get started!\n")
 	} else {
 		s.WriteString(m.list.View())
 	}
 
-	// Help (if not empty, list usually handles spacing, but we want consistent help)
-	if len(m.list.Items()) == 0 && m.err == "" {
-		s.WriteString("\n")
-	}
-
-	s.WriteString(styles.Help.Render("f: filter (current) | r: refresh | ↑/↓: navigate"))
+	helpText := fmt.Sprintf("f: filter (%s) | r: refresh | ↑/↓: navigate", m.filter)
+	s.WriteString(RenderStatusBar(m.width, "", m.err, helpText))
 
 	return s.String()
 }
