@@ -12,8 +12,8 @@ func TestSearchBar_NewNotActive(t *testing.T) {
 	if sb.IsActive() {
 		t.Error("NewSearchBar should create inactive search bar")
 	}
-	if sb.Value() != "" {
-		t.Error("NewSearchBar should have empty value")
+	if sb.Query() != "" {
+		t.Error("NewSearchBar should have empty query")
 	}
 }
 
@@ -24,8 +24,8 @@ func TestSearchBar_Activate(t *testing.T) {
 	if !sb.IsActive() {
 		t.Error("Activate should set active to true")
 	}
-	if sb.Value() != "" {
-		t.Error("Activate should clear value")
+	if sb.Query() != "" {
+		t.Error("Activate should clear query")
 	}
 	if cmd == nil {
 		t.Error("Activate should return a command")
@@ -42,18 +42,18 @@ func TestSearchBar_Deactivate(t *testing.T) {
 	if sb.IsActive() {
 		t.Error("Deactivate should set active to false")
 	}
-	if sb.Value() != "" {
-		t.Error("Deactivate should clear value")
+	if sb.Query() != "" {
+		t.Error("Deactivate should clear query")
 	}
 }
 
-func TestSearchBar_Value(t *testing.T) {
+func TestSearchBar_Query(t *testing.T) {
 	sb := NewSearchBar()
 	sb.Activate()
 	sb.input.SetValue("hello world")
 
-	if sb.Value() != "hello world" {
-		t.Errorf("Value() should return 'hello world', got %q", sb.Value())
+	if sb.Query() != "hello world" {
+		t.Errorf("Query() should return 'hello world', got %q", sb.Query())
 	}
 }
 
@@ -128,37 +128,31 @@ func TestSearchBar_UpdateWhenActive(t *testing.T) {
 	sb.Activate()
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	sb2, cmd := sb.Update(msg)
+	_, cmd := sb.Update(msg)
 
 	if cmd == nil {
 		t.Error("Update when active should return a command")
 	}
-	// Note: We can't easily test the actual text input update without
-	// running the full Bubble Tea program, but we verify the command is returned
 }
 
 func TestSearchBar_MultipleActivateDeactivate(t *testing.T) {
 	sb := NewSearchBar()
 
-	// Activate
 	sb.Activate()
 	if !sb.IsActive() {
 		t.Error("First activate should set active to true")
 	}
 
-	// Deactivate
 	sb.Deactivate()
 	if sb.IsActive() {
 		t.Error("First deactivate should set active to false")
 	}
 
-	// Activate again
 	sb.Activate()
 	if !sb.IsActive() {
 		t.Error("Second activate should set active to true")
 	}
 
-	// Deactivate again
 	sb.Deactivate()
 	if sb.IsActive() {
 		t.Error("Second deactivate should set active to false")
