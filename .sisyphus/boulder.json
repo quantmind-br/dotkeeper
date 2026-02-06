@@ -1,8 +1,8 @@
 {
-  "active_plan": "/home/diogo/dev/dotkeeper/.sisyphus/plans/ci-007-011-logs-help.md",
-  "started_at": "2026-02-05T21:04:19.489Z",
+  "active_plan": "/home/diogo/dev/dotkeeper/.sisyphus/plans/tui-tabs.md",
+  "started_at": "2026-02-05T23:06:17.368Z",
   "session_ids": [
-    "ses_3d076ca64ffeZ3ozuS44nZtTl6"
+    "ses_3d010a8b8ffekYQLSLYnfRlm8m"
   ],
-  "plan_name": "ci-007-011-logs-help"
+  "plan_name": "tui-tabs"
 }

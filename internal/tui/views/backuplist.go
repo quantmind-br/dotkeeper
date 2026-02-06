@@ -34,16 +34,21 @@ type BackupErrorMsg struct {
 	Error error
 }
 
+type backupDeletedMsg struct{ name string }
+type backupDeleteErrorMsg struct{ err error }
+
 type BackupListModel struct {
-	config         *config.Config
-	store          *history.Store
-	list           list.Model
-	width          int
-	height         int
-	creatingBackup bool
-	passwordInput  textinput.Model
-	backupStatus   string
-	backupError    string
+	config           *config.Config
+	store            *history.Store
+	list             list.Model
+	width            int
+	height           int
+	creatingBackup   bool
+	confirmingDelete bool
+	deleteTarget     string
+	passwordInput    textinput.Model
+	backupStatus     string
+	backupError      string
 }
 
 func NewBackupList(cfg *config.Config, store *history.Store) BackupListModel {
@@ -74,6 +79,10 @@ func (m BackupListModel) Refresh() tea.Cmd {
 		dir := expandHome(m.config.BackupDir)
 		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 
+		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
+			paths[i], paths[j] = paths[j], paths[i]
+		}
+
 		items := make([]list.Item, 0, len(paths))
 		for _, p := range paths {
 			if info, err := os.Stat(p); err == nil && info != nil {
@@ -99,6 +108,20 @@ func (m BackupListModel) runBackup(password string) tea.Cmd {
 			return BackupErrorMsg{Error: err}
 		}
 		return BackupSuccessMsg{Result: result}
+	}
+}
+
+func (m BackupListModel) deleteBackup(name string) tea.Cmd {
+	return func() tea.Msg {
+		dir := expandHome(m.config.BackupDir)
+		encPath := filepath.Join(dir, name+".tar.gz.enc")
+		metaPath := encPath + ".meta.json"
+
+		if err := os.Remove(encPath); err != nil {
+			return backupDeleteErrorMsg{err: fmt.Errorf("delete %s: %w", filepath.Base(encPath), err)}
+		}
+		os.Remove(metaPath)
+		return backupDeletedMsg{name: name}
 	}
 }
 
@@ -135,7 +158,32 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case backupDeletedMsg:
+		m.confirmingDelete = false
+		m.backupStatus = fmt.Sprintf("✓ Deleted: %s", msg.name)
+		m.backupError = ""
+		m.deleteTarget = ""
+		return m, m.Refresh()
+
+	case backupDeleteErrorMsg:
+		m.confirmingDelete = false
+		m.backupStatus = ""
+		m.backupError = fmt.Sprintf("✗ Delete failed: %v", msg.err)
+		m.deleteTarget = ""
+		return m, nil
+
 	case tea.KeyMsg:
+		if m.confirmingDelete {
+			switch msg.String() {
+			case "y", "Y":
+				return m, m.deleteBackup(m.deleteTarget)
+			default:
+				m.confirmingDelete = false
+				m.deleteTarget = ""
+				return m, nil
+			}
+		}
+
 		if m.creatingBackup {
 			switch msg.String() {
 			case "enter":
@@ -164,6 +212,15 @@ func (m BackupListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.backupError = ""
 			m.passwordInput.Focus()
 			return m, textinput.Blink
+		case "d":
+			if item := m.list.SelectedItem(); item != nil {
+				selected := item.(backupItem)
+				m.confirmingDelete = true
+				m.deleteTarget = selected.name
+				m.backupStatus = ""
+				m.backupError = ""
+				return m, nil
+			}
 		case "r":
 			return m, m.Refresh()
 		}
@@ -183,6 +240,13 @@ func (m BackupListModel) View() string {
 
 	styles := DefaultStyles()
 
+	if m.confirmingDelete {
+		s.WriteString(styles.Title.Render("Delete Backup") + "\n\n")
+		s.WriteString(fmt.Sprintf("Are you sure you want to delete %s?\n\n", styles.Value.Render(m.deleteTarget)))
+		s.WriteString(styles.Help.Render("y: confirm | any other key: cancel"))
+		return s.String()
+	}
+
 	if m.creatingBackup {
 		s.WriteString(styles.Title.Render("Create New Backup") + "\n\n")
 		s.WriteString("Enter encryption password:\n\n")
@@ -201,12 +265,18 @@ func (m BackupListModel) View() string {
 		s.WriteString(styles.Error.Render(m.backupError) + "\n")
 	}
 
-	s.WriteString(styles.Help.Render("n: new backup | r: refresh | ↑/↓: navigate"))
+	s.WriteString(styles.Help.Render("n: new backup | d: delete | r: refresh | ↑/↓: navigate"))
 
 	return s.String()
 }
 
 func (m BackupListModel) HelpBindings() []HelpEntry {
+	if m.confirmingDelete {
+		return []HelpEntry{
+			{"y", "Confirm delete"},
+			{"any", "Cancel"},
+		}
+	}
 	if m.creatingBackup {
 		return []HelpEntry{
 			{"Enter", "Create backup"},
@@ -215,6 +285,7 @@ func (m BackupListModel) HelpBindings() []HelpEntry {
 	}
 	return []HelpEntry{
 		{"n/c", "New backup"},
+		{"d", "Delete backup"},
 		{"r", "Refresh list"},
 		{"↑/↓", "Navigate"},
 	}
@@ -222,5 +293,5 @@ func (m BackupListModel) HelpBindings() []HelpEntry {
 
 // IsCreating returns true when the backup list is in backup creation mode (password input).
 func (m BackupListModel) IsCreating() bool {
-	return m.creatingBackup
+	return m.creatingBackup || m.confirmingDelete
 }

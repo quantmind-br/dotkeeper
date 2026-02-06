@@ -9,9 +9,10 @@ import (
 )
 
 type KeyMap struct {
-	Quit key.Binding
-	Tab  key.Binding
-	Help key.Binding
+	Quit     key.Binding
+	Tab      key.Binding
+	ShiftTab key.Binding
+	Help     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -23,6 +24,10 @@ func DefaultKeyMap() KeyMap {
 		Tab: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "next view"),
+		),
+		ShiftTab: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "previous view"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
@@ -126,6 +131,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				nextIdx := (currentIdx + 1) % len(tabOrder)
 				prevState := m.state
 				m.state = tabOrder[nextIdx]
+				if m.state == BackupListView && prevState != BackupListView {
+					cmds = append(cmds, m.backupList.Refresh())
+				}
+				if m.state == RestoreView && prevState != RestoreView {
+					cmds = append(cmds, m.restore.Refresh())
+				}
+				if m.state == LogsView && prevState != LogsView {
+					cmds = append(cmds, m.logs.LoadHistory())
+				}
+			}
+			return m, tea.Batch(cmds...)
+		}
+
+		if key.Matches(msg, keys.ShiftTab) {
+			if !m.isInputActive() {
+				currentIdx := m.activeTabIndex()
+				prevIdx := (currentIdx - 1 + len(tabOrder)) % len(tabOrder)
+				prevState := m.state
+				m.state = tabOrder[prevIdx]
 				if m.state == BackupListView && prevState != BackupListView {
 					cmds = append(cmds, m.backupList.Refresh())
 				}

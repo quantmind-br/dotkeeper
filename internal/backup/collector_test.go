@@ -45,13 +45,11 @@ func TestCollectFiles_Basic(t *testing.T) {
 func TestCollectFiles_WithSymlinks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create target file
 	target := filepath.Join(tmpDir, "target.txt")
 	if err := os.WriteFile(target, []byte("target content"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create symlink
 	link := filepath.Join(tmpDir, "link.txt")
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
@@ -63,24 +61,21 @@ func TestCollectFiles_WithSymlinks(t *testing.T) {
 	}
 
 	if len(files) != 1 {
-		t.Errorf("Expected 1 file, got %d", len(files))
+		t.Fatalf("Expected 1 file, got %d", len(files))
 	}
 
-	// Should follow symlink and get target content
-	if files[0].Size != 14 {
-		t.Errorf("Expected size 14 (target content), got %d", files[0].Size)
-	}
-
-	// Path should be the link path, not target
 	if files[0].Path != link {
 		t.Errorf("Expected path %s, got %s", link, files[0].Path)
+	}
+
+	if files[0].LinkTarget != target {
+		t.Errorf("Expected LinkTarget %s, got %s", target, files[0].LinkTarget)
 	}
 }
 
 func TestCollectFiles_CircularSymlinks(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create circular symlinks
 	link1 := filepath.Join(tmpDir, "link1")
 	link2 := filepath.Join(tmpDir, "link2")
 
@@ -92,15 +87,16 @@ func TestCollectFiles_CircularSymlinks(t *testing.T) {
 	}
 
 	files, err := CollectFiles([]string{link1})
-
-	// Should detect circular symlink and skip with warning
 	if err != nil {
 		t.Fatalf("CollectFiles should not fail on circular symlinks: %v", err)
 	}
 
-	// Should return empty list (skipped)
-	if len(files) != 0 {
-		t.Errorf("Expected 0 files (circular symlink skipped), got %d", len(files))
+	if len(files) != 1 {
+		t.Fatalf("Expected 1 file (symlink stored as-is), got %d", len(files))
+	}
+
+	if files[0].LinkTarget != link2 {
+		t.Errorf("Expected LinkTarget %s, got %s", link2, files[0].LinkTarget)
 	}
 }
 
@@ -194,16 +190,16 @@ func TestCollectFiles_ExpandHome(t *testing.T) {
 	}
 }
 
-func TestCollectFiles_MaxDepth(t *testing.T) {
+func TestCollectFiles_SymlinkChain(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create deep symlink chain (depth > 20)
-	prev := filepath.Join(tmpDir, "target.txt")
-	if err := os.WriteFile(prev, []byte("content"), 0644); err != nil {
+	target := filepath.Join(tmpDir, "target.txt")
+	if err := os.WriteFile(target, []byte("content"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	for i := 0; i < 25; i++ {
+	prev := target
+	for i := 0; i < 5; i++ {
 		link := filepath.Join(tmpDir, filepath.Base(prev)+"_link")
 		if err := os.Symlink(prev, link); err != nil {
 			t.Fatal(err)
@@ -212,13 +208,43 @@ func TestCollectFiles_MaxDepth(t *testing.T) {
 	}
 
 	files, err := CollectFiles([]string{prev})
-
-	// Should detect max depth exceeded and skip
 	if err != nil {
-		t.Fatalf("CollectFiles should not fail on max depth: %v", err)
+		t.Fatalf("CollectFiles should not fail: %v", err)
 	}
 
-	if len(files) != 0 {
-		t.Errorf("Expected 0 files (max depth exceeded), got %d", len(files))
+	if len(files) != 1 {
+		t.Fatalf("Expected 1 file (symlink stored as-is), got %d", len(files))
+	}
+
+	if files[0].LinkTarget == "" {
+		t.Error("Expected LinkTarget to be set for symlink")
+	}
+}
+
+func TestCollectFiles_DuplicatePathsViaSymlinks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realDir := filepath.Join(tmpDir, "real")
+	os.MkdirAll(realDir, 0755)
+	os.WriteFile(filepath.Join(realDir, "file.txt"), []byte("content"), 0644)
+
+	link1 := filepath.Join(tmpDir, "link1")
+	link2 := filepath.Join(tmpDir, "link2")
+	os.Symlink(realDir, link1)
+	os.Symlink(realDir, link2)
+
+	files, err := CollectFiles([]string{link1, link2})
+	if err != nil {
+		t.Fatalf("CollectFiles failed: %v", err)
+	}
+
+	if len(files) != 2 {
+		t.Errorf("Expected 2 symlink entries, got %d", len(files))
+	}
+
+	for _, f := range files {
+		if f.LinkTarget == "" {
+			t.Errorf("Expected LinkTarget for %s", f.Path)
+		}
 	}
 }

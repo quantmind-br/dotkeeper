@@ -208,7 +208,14 @@ func verifyArchive(t *testing.T, buf *bytes.Buffer, expectedFiles []FileInfo) {
 			t.Errorf("Expected name %s, got %s", expected.Path, header.Name)
 		}
 
-		if header.Size != expected.Size {
+		if expected.LinkTarget != "" {
+			if header.Typeflag != tar.TypeSymlink {
+				t.Errorf("Expected symlink entry for %s", expected.Path)
+			}
+			if header.Linkname != expected.LinkTarget {
+				t.Errorf("Expected linkname %s, got %s", expected.LinkTarget, header.Linkname)
+			}
+		} else if header.Size != expected.Size {
 			t.Errorf("Expected size %d, got %d", expected.Size, header.Size)
 		}
 

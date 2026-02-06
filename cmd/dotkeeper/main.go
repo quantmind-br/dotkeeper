@@ -49,6 +49,8 @@ func main() {
 		exitCode = cli.RestoreCommand(args)
 	case "list":
 		exitCode = cli.ListCommand(args)
+	case "delete":
+		exitCode = cli.DeleteCommand(args)
 	case "config":
 		exitCode = cli.ConfigCommand(args)
 	case "history":
@@ -77,6 +79,7 @@ Commands:
   backup      Create a backup of dotfiles
   restore     Restore dotfiles from backup
   list        List available backups
+  delete      Delete a backup
   config      Manage configuration
   history     Show operation history
   schedule    Manage automated backup scheduling

@@ -9,14 +9,13 @@ import (
 	"strings"
 )
 
-const maxSymlinkDepth = 20
-
 // FileInfo represents metadata about a file to be backed up
 type FileInfo struct {
-	Path    string      // Original path (may be symlink)
-	Size    int64       // File size in bytes
-	Mode    fs.FileMode // File permissions
-	ModTime int64       // Modification time (Unix timestamp)
+	Path       string      // Original path (may be symlink)
+	Size       int64       // File size in bytes
+	Mode       fs.FileMode // File permissions
+	ModTime    int64       // Modification time (Unix timestamp)
+	LinkTarget string      // Symlink target (empty for regular files)
 }
 
 // CollectFiles collects file information from the given paths.
@@ -43,30 +42,27 @@ func CollectFiles(paths []string) ([]FileInfo, error) {
 }
 
 func collectPath(path string, files *[]FileInfo, visited map[string]bool, depth int) error {
-	symlinkDepth := countSymlinkDepth(path)
-	if symlinkDepth > maxSymlinkDepth {
-		return fmt.Errorf("max symlink depth exceeded")
-	}
-
-	// Get file info (follows symlinks)
-	info, err := os.Stat(path)
+	linfo, err := os.Lstat(path)
 	if err != nil {
-		return fmt.Errorf("stat failed: %w", err)
+		return fmt.Errorf("lstat failed: %w", err)
 	}
 
-	// Get real path to detect circular symlinks
-	realPath, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return fmt.Errorf("eval symlinks failed: %w", err)
+	if linfo.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(path)
+		if err != nil {
+			return fmt.Errorf("readlink failed: %w", err)
+		}
+
+		*files = append(*files, FileInfo{
+			Path:       path,
+			Mode:       linfo.Mode().Perm(),
+			ModTime:    linfo.ModTime().Unix(),
+			LinkTarget: target,
+		})
+		return nil
 	}
 
-	// Check if we've already visited this real path (circular symlink detection)
-	if visited[realPath] {
-		return fmt.Errorf("circular symlink detected")
-	}
-
-	// If it's a directory, collect all files recursively
-	if info.IsDir() {
+	if linfo.IsDir() {
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			return fmt.Errorf("read dir failed: %w", err)
@@ -81,68 +77,33 @@ func collectPath(path string, files *[]FileInfo, visited map[string]bool, depth 
 		return nil
 	}
 
-	// Skip special files (sockets, FIFOs, devices)
-	if !info.Mode().IsRegular() {
+	if !linfo.Mode().IsRegular() {
 		return fmt.Errorf("not a regular file")
 	}
 
-	// Check if file is readable
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("file not readable: %w", err)
 	}
 	file.Close()
 
-	// Mark as visited
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		realPath = path
+	}
+	if visited[realPath] {
+		return nil
+	}
 	visited[realPath] = true
 
-	// Add file info
 	*files = append(*files, FileInfo{
 		Path:    path,
-		Size:    info.Size(),
-		Mode:    info.Mode().Perm(), // Get permission bits only
-		ModTime: info.ModTime().Unix(),
+		Size:    linfo.Size(),
+		Mode:    linfo.Mode().Perm(),
+		ModTime: linfo.ModTime().Unix(),
 	})
 
 	return nil
-}
-
-func isSymlink(path string) bool {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
-	return info.Mode()&os.ModeSymlink != 0
-}
-
-func countSymlinkDepth(path string) int {
-	depth := 0
-	current := path
-
-	for depth <= maxSymlinkDepth {
-		info, err := os.Lstat(current)
-		if err != nil {
-			return depth
-		}
-
-		if info.Mode()&os.ModeSymlink == 0 {
-			return depth
-		}
-
-		target, err := os.Readlink(current)
-		if err != nil {
-			return depth
-		}
-
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(filepath.Dir(current), target)
-		}
-
-		current = target
-		depth++
-	}
-
-	return depth
 }
 
 func expandHome(path string) string {

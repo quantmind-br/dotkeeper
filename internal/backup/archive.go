@@ -26,6 +26,17 @@ func CreateArchive(files []FileInfo, writer io.Writer) error {
 }
 
 func addFileToArchive(tw *tar.Writer, fileInfo FileInfo) error {
+	if fileInfo.LinkTarget != "" {
+		header := &tar.Header{
+			Typeflag: tar.TypeSymlink,
+			Name:     fileInfo.Path,
+			Linkname: fileInfo.LinkTarget,
+			Mode:     int64(fileInfo.Mode),
+			ModTime:  time.Unix(fileInfo.ModTime, 0),
+		}
+		return tw.WriteHeader(header)
+	}
+
 	file, err := os.Open(fileInfo.Path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)

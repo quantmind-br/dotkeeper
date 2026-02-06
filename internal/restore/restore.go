@@ -102,8 +102,11 @@ func Restore(backupPath, password string, opts RestoreOptions) (*RestoreResult, 
 			// No backup needed
 		}
 
-		// Restore file atomically
-		if err := restoreFileAtomic(targetPath, entry.Content, entry.Mode); err != nil {
+		if entry.LinkTarget != "" {
+			if err := restoreSymlink(targetPath, entry.LinkTarget); err != nil {
+				return nil, fmt.Errorf("failed to restore symlink %s: %w", targetPath, err)
+			}
+		} else if err := restoreFileAtomic(targetPath, entry.Content, entry.Mode); err != nil {
 			return nil, fmt.Errorf("failed to restore %s: %w", targetPath, err)
 		}
 
@@ -168,12 +171,20 @@ func extractTarGz(data []byte) ([]FileEntry, error) {
 			return nil, fmt.Errorf("tar read error: %w", err)
 		}
 
-		// Skip directories
 		if header.Typeflag == tar.TypeDir {
 			continue
 		}
 
-		// Read file content
+		if header.Typeflag == tar.TypeSymlink {
+			entries = append(entries, FileEntry{
+				Path:       header.Name,
+				Mode:       header.Mode,
+				ModTime:    header.ModTime.Unix(),
+				LinkTarget: header.Linkname,
+			})
+			continue
+		}
+
 		content, err := io.ReadAll(tr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file %s: %w", header.Name, err)
@@ -188,6 +199,20 @@ func extractTarGz(data []byte) ([]FileEntry, error) {
 	}
 
 	return entries, nil
+}
+
+func restoreSymlink(path, target string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	os.Remove(path)
+
+	if err := os.Symlink(target, path); err != nil {
+		return fmt.Errorf("failed to create symlink: %w", err)
+	}
+	return nil
 }
 
 // restoreFileAtomic writes a file atomically using temp file + rename
@@ -295,9 +320,11 @@ func GetFileDiff(backupPath, password, filePath string) (string, error) {
 		return "", err
 	}
 
-	// Find the file
 	for _, entry := range entries {
 		if entry.Path == filePath || filepath.Base(entry.Path) == filepath.Base(filePath) {
+			if entry.LinkTarget != "" {
+				return fmt.Sprintf("symlink → %s", entry.LinkTarget), nil
+			}
 			result, err := GenerateDiff(entry.Content, filePath)
 			if err != nil {
 				return "", err

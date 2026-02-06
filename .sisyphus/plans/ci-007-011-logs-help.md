@@ -1,4 +1,4 @@
-# CI-007 + CI-011: LogsView with Operation History & Help Overlay System
+# CI-007 + CI-011: LogsView with Operation History & Help Overlay System ✅ COMPLETED
 
 ## TL;DR
 
@@ -67,15 +67,15 @@ Add persistent operation history with a TUI viewer and CLI command (CI-007), and
 - Updated: `cmd/dotkeeper/main.go` (add `history` command)
 
 ### Definition of Done
-- [ ] `make build` succeeds
-- [ ] `make test` passes (all tests, including new ones)
-- [ ] `dotkeeper backup` creates history entry in `~/.local/state/dotkeeper/history.jsonl`
-- [ ] `dotkeeper restore` creates history entry
-- [ ] `dotkeeper history` displays operation history
-- [ ] `dotkeeper history --json` outputs valid JSON
-- [ ] TUI LogsView shows history entries with filtering
-- [ ] TUI `?` key shows help overlay with context-aware keybindings
-- [ ] Help overlay dismisses on `?`, `Esc`, or any other key
+- [x] `make build` succeeds
+- [x] `make test` passes (all tests, including new ones)
+- [x] `dotkeeper backup` creates history entry in `~/.local/state/dotkeeper/history.jsonl`
+- [x] `dotkeeper restore` creates history entry
+- [x] `dotkeeper history` displays operation history
+- [x] `dotkeeper history --json` outputs valid JSON
+- [x] TUI LogsView shows history entries with filtering
+- [x] TUI `?` key shows help overlay with context-aware keybindings
+- [x] Help overlay dismisses on `?`, `Esc`, or any other key
 
 ### Must Have
 - JSONL format for history storage (one JSON object per line)
@@ -234,10 +234,10 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] File `internal/history/history.go` exists with Store, HistoryEntry, Append, Read, ReadByType, helper functions
-  - [ ] File `internal/history/history_test.go` exists with ≥8 test functions
-  - [ ] `go test -v -race ./internal/history/...` → PASS (all tests, 0 failures)
-  - [ ] No new dependencies added to `go.mod`
+  - [x] File `internal/history/history.go` exists with Store, HistoryEntry, Append, Read, ReadByType, helper functions
+  - [x] File `internal/history/history_test.go` exists with ≥8 test functions
+  - [x] `go test -v -race ./internal/history/...` → PASS (all tests, 0 failures)
+  - [x] No new dependencies added to `go.mod`
 
   **Agent-Executed QA Scenarios:**
 
@@ -323,11 +323,11 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] `go build ./cmd/dotkeeper/...` succeeds
-  - [ ] `./bin/dotkeeper history` executes without error (may show empty list)
-  - [ ] `./bin/dotkeeper history --json` outputs valid JSON (empty array `[]` if no history)
-  - [ ] `./bin/dotkeeper --help` shows `history` command
-  - [ ] History hooks in backup.go and restore.go don't affect exit codes
+  - [x] `go build ./cmd/dotkeeper/...` succeeds
+  - [x] `./bin/dotkeeper history` executes without error (may show empty list)
+  - [x] `./bin/dotkeeper history --json` outputs valid JSON (empty array `[]` if no history)
+  - [x] `./bin/dotkeeper --help` shows `history` command
+  - [x] History hooks in backup.go and restore.go don't affect exit codes
 
   **Agent-Executed QA Scenarios:**
 
@@ -425,11 +425,11 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] `internal/tui/views/logs.go` is fully implemented (>100 lines)
-  - [ ] `internal/tui/views/logs_test.go` has ≥5 test functions
-  - [ ] `go test -v -race ./internal/tui/views/...` → PASS
-  - [ ] LogsView shows "No operations recorded" when history is empty
-  - [ ] LogsView list shows entries from history file when populated
+  - [x] `internal/tui/views/logs.go` is fully implemented (>100 lines)
+  - [x] `internal/tui/views/logs_test.go` has ≥5 test functions
+  - [x] `go test -v -race ./internal/tui/views/...` → PASS
+  - [x] LogsView shows "No operations recorded" when history is empty
+  - [x] LogsView list shows entries from history file when populated
 
   **Agent-Executed QA Scenarios:**
 
@@ -513,11 +513,11 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] `make build` succeeds
-  - [ ] `go test -v -race ./internal/tui/...` → PASS
-  - [ ] Model struct has `history` field
-  - [ ] NewModel creates history store and passes to views
-  - [ ] Tab to LogsView triggers history reload
+  - [x] `make build` succeeds
+  - [x] `go test -v -race ./internal/tui/...` → PASS
+  - [x] Model struct has `history` field
+  - [x] NewModel creates history store and passes to views
+  - [x] Tab to LogsView triggers history reload
 
   **Agent-Executed QA Scenarios:**
 
@@ -607,13 +607,13 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] `internal/tui/help.go` exists with HelpEntry, HelpProvider, globalHelp, renderHelpOverlay
-  - [ ] Model struct has `showingHelp bool`
-  - [ ] `?` key toggles help overlay visibility
-  - [ ] Any key dismisses help when showing
-  - [ ] WindowSizeMsg still processed when help is showing
-  - [ ] `make build` succeeds
-  - [ ] `go test -v -race ./internal/tui/...` → PASS
+  - [x] `internal/tui/help.go` exists with HelpEntry, HelpProvider, globalHelp, renderHelpOverlay
+  - [x] Model struct has `showingHelp bool`
+  - [x] `?` key toggles help overlay visibility
+  - [x] Any key dismisses help when showing
+  - [x] WindowSizeMsg still processed when help is showing
+  - [x] `make build` succeeds
+  - [x] `go test -v -race ./internal/tui/...` → PASS
 
   **Agent-Executed QA Scenarios:**
 
@@ -698,11 +698,11 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] All 6 views have HelpBindings method (Dashboard, BackupList, Restore, Settings, Logs, FileBrowser)
-  - [ ] RestoreModel.HelpBindings is phase-aware
-  - [ ] SettingsModel.HelpBindings is mode-aware
-  - [ ] `make build` succeeds (no import cycles)
-  - [ ] `go test -v -race ./internal/tui/...` → PASS
+  - [x] All 6 views have HelpBindings method (Dashboard, BackupList, Restore, Settings, Logs, FileBrowser)
+  - [x] RestoreModel.HelpBindings is phase-aware
+  - [x] SettingsModel.HelpBindings is mode-aware
+  - [x] `make build` succeeds (no import cycles)
+  - [x] `go test -v -race ./internal/tui/...` → PASS
 
   **Agent-Executed QA Scenarios:**
 
@@ -777,13 +777,13 @@ Parallel Speedup: ~40% faster than sequential
 
   **Acceptance Criteria**:
 
-  - [ ] `make build` → exit code 0
-  - [ ] `make test` → exit code 0, all tests PASS
-  - [ ] `go vet ./...` → exit code 0
-  - [ ] TUI launches without crash
-  - [ ] LogsView reachable via Tab and displays content
-  - [ ] `?` key shows help overlay
-  - [ ] `dotkeeper history` works from CLI
+  - [x] `make build` → exit code 0
+  - [x] `make test` → exit code 0, all tests PASS
+  - [x] `go vet ./...` → exit code 0
+  - [x] TUI launches without crash
+  - [x] LogsView reachable via Tab and displays content
+  - [x] `?` key shows help overlay
+  - [x] `dotkeeper history` works from CLI
 
   **Agent-Executed QA Scenarios:**
 
@@ -890,12 +890,12 @@ go vet ./...                        # Expected: exit 0, no issues
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" items present
-- [ ] All "Must NOT Have" guardrails respected (no new deps, no bubbles/help, no new ViewState, etc.)
-- [ ] `internal/history/` package with full tests
-- [ ] `dotkeeper history` CLI command
-- [ ] LogsView fully implemented (not skeleton)
-- [ ] Help overlay works with `?` key
-- [ ] Help overlay shows context-aware bindings per view
-- [ ] All existing tests still pass
-- [ ] No new dependencies in `go.mod`
+- [x] All "Must Have" items present
+- [x] All "Must NOT Have" guardrails respected (no new deps, no bubbles/help, no new ViewState, etc.)
+- [x] `internal/history/` package with full tests
+- [x] `dotkeeper history` CLI command
+- [x] LogsView fully implemented (not skeleton)
+- [x] Help overlay works with `?` key
+- [x] Help overlay shows context-aware bindings per view
+- [x] All existing tests still pass
+- [x] No new dependencies in `go.mod`

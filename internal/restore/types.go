@@ -40,10 +40,11 @@ type RestoreResult struct {
 
 // FileEntry represents a file extracted from backup
 type FileEntry struct {
-	Path    string
-	Content []byte
-	Mode    int64
-	ModTime int64
+	Path       string
+	Content    []byte
+	Mode       int64
+	ModTime    int64
+	LinkTarget string
 }
 
 // DiffResult represents the diff between two files

@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2025-02-04
-**Commit:** 44c316b
+**Generated:** 2026-02-05
+**Commit:** 064eb68
 **Branch:** master
 
 ## OVERVIEW
@@ -38,6 +38,7 @@ dotkeeper/
 | Modify restore flow | `internal/restore/restore.go` | decrypt → extract → conflict → atomic write |
 | Add config field | `internal/config/config.go` | Add to struct + yaml tag + Validate() |
 | Password sources | `internal/cli/backup.go:getPassword()` | Priority: file → env → keyring |
+| Git operations | `internal/git/` | go-git library only, no shell-out |
 
 ## TUI PATTERNS
 
@@ -77,6 +78,9 @@ func (m XxxModel) View() string { ... }
 - **Backup naming**: `backup-YYYY-MM-DD-HHMMSS.tar.gz.enc` + `.meta.json`
 - **Tests co-located**: `foo.go` → `foo_test.go` (same package)
 - **No globals in TUI**: Pass config via constructor
+- **Git operations**: Use go-git library, never shell out
+- **Permissions**: Backup files always `0600`
+- **Symlinks**: Followed and content copied (not preserved as links)
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -87,6 +91,8 @@ func (m XxxModel) View() string { ... }
 - Force push
 - Load entire backup files in memory (use streaming where possible)
 - Add `@ts-ignore` equivalent (`//nolint` without justification)
+- Change Argon2id parameters (breaks backward compatibility)
+- Roll your own crypto
 
 **DON'T:**
 - Add incremental backups (full backup each time by design)
@@ -94,13 +100,17 @@ func (m XxxModel) View() string { ... }
 - Add Windows support (Linux/systemd only)
 - Add multiple config profiles (single config by design)
 - Add file auto-discovery (explicit paths only)
+- Block in TUI `Update()` - always use `tea.Cmd`
+- Access globals in TUI - pass config via constructor
 
 ## SECURITY
 
 - **Encryption**: AES-256-GCM (authenticated)
 - **KDF**: Argon2id (3 iterations, 64MB, 4 threads)
 - **Salt**: 16 bytes random per backup
-- **Metadata**: Stored in `.meta.json` (not encrypted)
+- **Nonce**: 12 bytes random per encryption
+- **Ciphertext format**: `[version(1)][salt(16)][nonce(12)][ciphertext...][tag(16)]`
+- **Metadata**: Stored in `.meta.json` (not encrypted - contains salt/KDF params only)
 - **Keyring**: zalando/go-keyring for headless mode
 
 ## COMMANDS
@@ -142,3 +152,5 @@ Timer runs daily at 2:00 AM with 1-hour randomized delay.
 - **Symlinks**: Followed and content copied (not preserved as links)
 - **Large files**: Currently loads in memory; streaming TODO for very large backups
 - **Restore conflicts**: Existing files renamed to `.bak` with diff preview option
+- **Git integration**: Pure go-git, no shell exec for security/reliability
+- **E2E tests**: Full integration tests in `e2e/` directory

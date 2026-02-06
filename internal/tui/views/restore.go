@@ -134,6 +134,10 @@ func (m RestoreModel) refreshBackups() tea.Cmd {
 		dir := expandHome(m.config.BackupDir)
 		paths, _ := filepath.Glob(filepath.Join(dir, "backup-*.tar.gz.enc"))
 
+		for i, j := 0, len(paths)-1; i < j; i, j = i+1, j-1 {
+			paths[i], paths[j] = paths[j], paths[i]
+		}
+
 		items := make([]list.Item, 0, len(paths))
 		for _, p := range paths {
 			if info, err := os.Stat(p); err == nil && info != nil {
